@@ -1,0 +1,12 @@
+.env
+tutor.db
+tutor.db-shm
+tutor.db-wal
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/

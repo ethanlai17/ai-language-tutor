@@ -1,0 +1,459 @@
+from datetime import date
+from telegram import Update
+from telegram.ext import ContextTypes
+
+import agents.assessor as assessor
+import agents.vocab_agent as vocab_agent
+import agents.grammar_agent as grammar_agent
+import agents.story_agent as story_agent
+import agents.review_agent as review_agent
+from bot import keyboards
+from core.state_machine import ConversationState as S, SessionState
+from core import session_store
+from db import queries
+
+_seen_callbacks: set[str] = set()
+
+
+async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.callback_query:
+        cq = update.callback_query
+        if cq.id in _seen_callbacks:
+            await cq.answer()
+            return
+        _seen_callbacks.add(cq.id)
+        if len(_seen_callbacks) > 2000:
+            _seen_callbacks.clear()
+        await cq.answer()
+        user = cq.from_user
+        text = cq.data
+    else:
+        user = update.effective_user
+        text = (update.message.text or "").strip()
+
+    chat_id = user.id
+    queries.upsert_user(chat_id, user.username or user.first_name)
+
+    state = session_store.get(chat_id)
+
+    # Command overrides
+    if text == "/start":
+        await _cmd_start(chat_id, state, ctx)
+        return
+    if text == "/study":
+        await _cmd_study(chat_id, state, ctx)
+        return
+    if text == "/add":
+        await _cmd_add(chat_id, state, ctx)
+        return
+    if text == "/stats":
+        await _cmd_stats(chat_id, ctx)
+        return
+
+    # State machine dispatch
+    s = state.state
+    if s == S.PLACEMENT_QUESTION:
+        await _handle_placement_answer(chat_id, state, text, ctx)
+    elif s == S.PLACEMENT_COMPLETE:
+        await _cmd_study(chat_id, state, ctx)
+    elif s == S.STORY_DISPLAY:
+        if text == "continue":
+            await _start_reviews_or_lessons(chat_id, state, ctx)
+    elif s == S.REVIEW_PROMPT:
+        await _handle_review_answer(chat_id, state, text, ctx)
+    elif s == S.REVIEW_ANSWER_SHOWN:
+        if text in ("1", "2", "3", "4"):
+            await _handle_rating(chat_id, state, int(text), ctx)
+    elif s == S.VOCAB_LESSON:
+        if text == "got_it":
+            await _send_vocab_quiz(chat_id, state, ctx)
+    elif s == S.VOCAB_QUIZ:
+        if text in ("A", "B", "C", "D"):
+            await _handle_vocab_quiz_answer(chat_id, state, text, ctx)
+    elif s == S.GRAMMAR_LESSON:
+        if text == "got_it":
+            await _send_grammar_quiz(chat_id, state, ctx)
+    elif s == S.GRAMMAR_QUIZ:
+        if text in ("A", "B", "C", "D"):
+            await _handle_grammar_quiz_answer(chat_id, state, text, ctx)
+    elif s == S.USER_ADD_VOCAB_WORD:
+        await _handle_add_word_input(chat_id, state, text, ctx)
+    elif s == S.USER_ADD_VOCAB_CONFIRM:
+        if text == "confirm_yes":
+            await _handle_add_confirm(chat_id, state, ctx)
+        elif text == "confirm_no":
+            await _send(chat_id, "Cancelled. Send /add to try again.", ctx)
+            state.state = S.IDLE
+            session_store.save(chat_id, state)
+    else:
+        await _send(chat_id, "Send /study to start today's session, or /add to add a word.", ctx)
+
+
+# ── Commands ─────────────────────────────────────────────────────────────────
+
+async def _cmd_start(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    user_row = queries.get_user(chat_id)
+    if user_row and user_row["placement_done"]:
+        await _cmd_study(chat_id, state, ctx)
+        return
+
+    await _send(chat_id,
+        "👋 Welcome to your Mandarin tutor!\n\n"
+        "Before we start, I need to find your current level.\n"
+        "You'll get *30 multiple-choice questions* across A1–C2.\n\n"
+        "Let's go! 🚀",
+        ctx, parse_mode="Markdown"
+    )
+    state.state = S.PLACEMENT_QUESTION
+    state.placement_index = 0
+    state.placement_scores = {}
+    session_store.save(chat_id, state)
+    await _send_placement_question(chat_id, state, ctx)
+
+
+async def _cmd_study(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    user_row = queries.get_user(chat_id)
+    if not user_row or not user_row["placement_done"]:
+        await _cmd_start(chat_id, state, ctx)
+        return
+
+    today = date.today().isoformat()
+    cefr = user_row["cefr_level"]
+
+    vocab_items = await vocab_agent.get_daily_vocab(chat_id, cefr, today)
+    grammar_item = await grammar_agent.get_daily_grammar(chat_id, cefr, today)
+
+    if not vocab_items or not grammar_item:
+        await _send(chat_id, "Could not load today's lesson. Please try again shortly.", ctx)
+        return
+
+    story = await story_agent.generate_daily_story(chat_id, today, vocab_items, grammar_item)
+
+    state.pending_vocab_ids = [v["item_id"] for v in vocab_items]
+    state.pending_grammar_ids = [grammar_item["item_id"]]
+    state.word_callbacks = story.get("word_callbacks", {})
+    state.state = S.STORY_DISPLAY
+    session_store.save(chat_id, state)
+
+    story_text = story.get("story_text", "")
+    hook = story.get("story_hook", "")
+
+    await _send(chat_id,
+        f"📖 *Today's Story*\n\n{story_text}\n\n_{hook}_",
+        ctx, parse_mode="Markdown",
+        reply_markup=keyboards.continue_keyboard()
+    )
+
+
+async def _cmd_add(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    state.state = S.USER_ADD_VOCAB_WORD
+    session_store.save(chat_id, state)
+    await _send(chat_id, "Which Mandarin word would you like to add to your deck?", ctx)
+
+
+async def _cmd_stats(chat_id: int, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    today = date.today().isoformat()
+    s = queries.get_stats(chat_id, today)
+    await _send(chat_id,
+        f"*Your stats*\n"
+        f"Level: {s['cefr_level']}\n"
+        f"Cards in deck: {s['total_cards']}\n"
+        f"Due today: {s['due_today']}\n"
+        f"Total reviews: {s['total_reviews']}",
+        ctx, parse_mode="Markdown"
+    )
+
+
+# ── Placement ────────────────────────────────────────────────────────────────
+
+async def _send_placement_question(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    q = assessor.get_question(state.placement_index)
+    total = assessor.total_questions()
+    text = (
+        f"*Question {state.placement_index + 1}/{total}*\n\n"
+        f"{q['question']}\n\n"
+        f"A) {q['options']['A']}\n"
+        f"B) {q['options']['B']}\n"
+        f"C) {q['options']['C']}\n"
+        f"D) {q['options']['D']}"
+    )
+    await _send(chat_id, text, ctx, parse_mode="Markdown", reply_markup=keyboards.mcq_keyboard())
+
+
+async def _handle_placement_answer(chat_id: int, state: SessionState, answer: str,
+                                   ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if answer.upper() not in ("A", "B", "C", "D"):
+        return
+    q = assessor.get_question(state.placement_index)
+    correct = assessor.score_answer(q, answer)
+    band = q["cefr_band"]
+    state.placement_scores[band] = state.placement_scores.get(band, 0) + (1 if correct else 0)
+    state.placement_index += 1
+
+    if state.placement_index >= assessor.total_questions():
+        await _send(chat_id, "Analysing your results...", ctx)
+        result = await assessor.determine_level(state.placement_scores)
+        level = result.get("level", "A1")
+        justification = result.get("justification", "")
+        queries.set_user_level(chat_id, level)
+        state.state = S.PLACEMENT_COMPLETE
+        session_store.save(chat_id, state)
+        await _send(chat_id,
+            f"*Your level: {level}*\n\n{justification}\n\nSend /study to start your first lesson!",
+            ctx, parse_mode="Markdown"
+        )
+    else:
+        session_store.save(chat_id, state)
+        await _send_placement_question(chat_id, state, ctx)
+
+
+# ── Reviews ───────────────────────────────────────────────────────────────────
+
+async def _start_reviews_or_lessons(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    today = date.today().isoformat()
+    due_cards = queries.get_due_cards(chat_id, today)
+    state.pending_review_cards = [c["card_id"] for c in due_cards]
+
+    if state.pending_review_cards:
+        await _send(chat_id, f"First, let's review *{len(state.pending_review_cards)} card(s)* due today.", ctx, parse_mode="Markdown")
+        await _send_next_review(chat_id, state, ctx)
+    else:
+        await _send_next_vocab_lesson(chat_id, state, ctx)
+
+
+async def _send_next_review(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    card_id = state.pending_review_cards[0]
+    card = queries.get_card_by_id(card_id)
+    card_data = await review_agent.present_review_card(card)
+    state.current_card_id = card_id
+    state.review_answer = card_data.get("answer", "")
+    state.review_prompt = card_data.get("prompt", "")
+    state.state = S.REVIEW_PROMPT
+    session_store.save(chat_id, state)
+
+    remaining = len(state.pending_review_cards)
+    await _send(chat_id,
+        f"🔁 *Review* ({remaining} left)\n\n{card_data['prompt']}",
+        ctx, parse_mode="Markdown"
+    )
+
+
+async def _handle_review_answer(chat_id: int, state: SessionState, answer: str,
+                                ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    evaluation = await review_agent.evaluate_answer(
+        state.review_prompt or "",
+        state.review_answer or "",
+        answer
+    )
+    correct_icon = "✅" if evaluation.get("correct") else "❌"
+    await _send(chat_id,
+        f"{correct_icon} {evaluation.get('feedback', '')}\n\n"
+        f"*Correct answer:* {state.review_answer or ''}\n\n"
+        "How well did you remember? Rate 1–4:",
+        ctx, parse_mode="Markdown",
+        reply_markup=keyboards.rating_keyboard()
+    )
+    state.state = S.REVIEW_ANSWER_SHOWN
+    session_store.save(chat_id, state)
+
+
+async def _handle_rating(chat_id: int, state: SessionState, rating: int,
+                         ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    review_agent.process_rating(state.current_card_id, rating)
+    state.pending_review_cards.pop(0)
+
+    if state.pending_review_cards:
+        await _send_next_review(chat_id, state, ctx)
+    else:
+        await _send(chat_id, "Reviews done! On to new lessons.", ctx)
+        await _send_next_vocab_lesson(chat_id, state, ctx)
+
+
+# ── Vocab lessons ─────────────────────────────────────────────────────────────
+
+async def _send_next_vocab_lesson(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not state.pending_vocab_ids:
+        await _send_grammar_lesson(chat_id, state, ctx)
+        return
+
+    item_id = state.pending_vocab_ids[0]
+    item = queries.get_vocab_by_id(item_id)
+    state.current_item_id = item_id
+    state.current_item_type = "vocab"
+    state.state = S.VOCAB_LESSON
+    session_store.save(chat_id, state)
+
+    callback = state.word_callbacks.get(item["word"], "")
+    callback_line = f"\n\n_💡 Story moment: {callback}_" if callback else ""
+
+    text = (
+        f"📚 *New word {5 - len(state.pending_vocab_ids) + 1}/5*\n\n"
+        f"*{item['word']}* ({item['pinyin']})\n"
+        f"➜ {item['meaning']}\n\n"
+        f"📝 {item['example_sent']}\n\n"
+        f"🧠 Mnemonic: _{item['mnemonic']}_"
+        f"{callback_line}"
+    )
+    await _send(chat_id, text, ctx, parse_mode="Markdown", reply_markup=keyboards.got_it_keyboard())
+
+
+async def _send_vocab_quiz(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    item = queries.get_vocab_by_id(state.current_item_id)
+    known = queries.get_known_vocab(chat_id, limit=15)
+    quiz = await vocab_agent.generate_vocab_quiz(item, known)
+
+    state.state = S.VOCAB_QUIZ
+    state.quiz_correct = quiz.get("correct", "A")
+    state.quiz_explanation = quiz.get("explanation", "")
+    session_store.save(chat_id, state)
+
+    opts = quiz.get("options", {})
+    await _send(chat_id,
+        f"🎯 *Quick quiz!*\n\n{quiz.get('question', '')}\n\n"
+        f"A) {opts.get('A','')}\nB) {opts.get('B','')}\nC) {opts.get('C','')}\nD) {opts.get('D','')}",
+        ctx, parse_mode="Markdown",
+        reply_markup=keyboards.mcq_keyboard()
+    )
+
+
+async def _handle_vocab_quiz_answer(chat_id: int, state: SessionState, answer: str,
+                                    ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    correct = state.quiz_correct or "A"
+    explanation = state.quiz_explanation or ""
+    icon = "✅" if answer == correct else "❌"
+    await _send(chat_id, f"{icon} Correct answer: *{correct}*\n_{explanation}_",
+                ctx, parse_mode="Markdown")
+
+    today = date.today().isoformat()
+    queries.log_daily_item(chat_id, today, "vocab", state.current_item_id)
+    queries.create_srs_card(chat_id, "vocab", state.current_item_id, today)
+
+    state.pending_vocab_ids.pop(0)
+    await _send_next_vocab_lesson(chat_id, state, ctx)
+
+
+# ── Grammar lesson ────────────────────────────────────────────────────────────
+
+async def _send_grammar_lesson(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not state.pending_grammar_ids:
+        await _finish_session(chat_id, state, ctx)
+        return
+
+    item_id = state.pending_grammar_ids[0]
+    item = queries.get_grammar_by_id(item_id)
+    state.current_item_id = item_id
+    state.current_item_type = "grammar"
+    state.state = S.GRAMMAR_LESSON
+    session_store.save(chat_id, state)
+
+    await _send(chat_id,
+        f"📖 *Today's Grammar*\n\n"
+        f"*{item['pattern']}*\n\n"
+        f"{item['explanation']}\n\n"
+        f"📝 {item['example_sent']}",
+        ctx, parse_mode="Markdown",
+        reply_markup=keyboards.got_it_keyboard()
+    )
+
+
+async def _send_grammar_quiz(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    item = queries.get_grammar_by_id(state.current_item_id)
+    known_vocab = queries.get_known_vocab(chat_id, limit=10)
+    quiz = await grammar_agent.generate_grammar_quiz(item, known_vocab)
+
+    state.state = S.GRAMMAR_QUIZ
+    state.quiz_correct = quiz.get("correct", "A")
+    state.quiz_explanation = quiz.get("explanation", "")
+    session_store.save(chat_id, state)
+
+    opts = quiz.get("options", {})
+    await _send(chat_id,
+        f"🎯 *Grammar quiz!*\n\n{quiz.get('question', '')}\n\n"
+        f"A) {opts.get('A','')}\nB) {opts.get('B','')}\nC) {opts.get('C','')}\nD) {opts.get('D','')}",
+        ctx, parse_mode="Markdown",
+        reply_markup=keyboards.mcq_keyboard()
+    )
+
+
+async def _handle_grammar_quiz_answer(chat_id: int, state: SessionState, answer: str,
+                                      ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    correct = state.quiz_correct or "A"
+    explanation = state.quiz_explanation or ""
+    icon = "✅" if answer == correct else "❌"
+    await _send(chat_id, f"{icon} Correct answer: *{correct}*\n_{explanation}_",
+                ctx, parse_mode="Markdown")
+
+    today = date.today().isoformat()
+    queries.log_daily_item(chat_id, today, "grammar", state.current_item_id)
+    queries.create_srs_card(chat_id, "grammar", state.current_item_id, today)
+
+    state.pending_grammar_ids.pop(0)
+    await _send_grammar_lesson(chat_id, state, ctx)
+
+
+# ── User-add vocab flow ───────────────────────────────────────────────────────
+
+async def _handle_add_word_input(chat_id: int, state: SessionState, word: str,
+                                 ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send(chat_id, f"Looking up *{word}*...", ctx, parse_mode="Markdown")
+    enriched = await vocab_agent.enrich_user_word(word)
+    state.pending_add_word = word
+    state.pending_add_enriched = enriched
+    state.state = S.USER_ADD_VOCAB_CONFIRM
+    session_store.save(chat_id, state)
+
+    await _send(chat_id,
+        f"*{enriched.get('word', word)}* ({enriched.get('pinyin', '')})\n"
+        f"➜ {enriched.get('meaning', '')}\n\n"
+        f"📝 {enriched.get('example_sent', '')}\n\n"
+        f"🧠 _{enriched.get('mnemonic', '')}_\n\n"
+        "Save this card?",
+        ctx, parse_mode="Markdown",
+        reply_markup=keyboards.confirm_keyboard()
+    )
+
+
+async def _handle_add_confirm(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    user_row = queries.get_user(chat_id)
+    cefr = user_row["cefr_level"] if user_row else "A1"
+    e = state.pending_add_enriched or {}
+    item_id = queries.insert_vocab(
+        user_id=chat_id,
+        word=e.get("word", state.pending_add_word or ""),
+        pinyin=e.get("pinyin", ""),
+        meaning=e.get("meaning", ""),
+        example_sent=e.get("example_sent", ""),
+        mnemonic=e.get("mnemonic", ""),
+        cefr_level=cefr,
+        source="user",
+    )
+    today = date.today().isoformat()
+    queries.create_srs_card(chat_id, "vocab", item_id, today)
+
+    state.state = S.IDLE
+    state.pending_add_word = None
+    state.pending_add_enriched = None
+    session_store.save(chat_id, state)
+
+    await _send(chat_id, f"Added *{e.get('word', '')}* to your deck. It's due for review today!",
+                ctx, parse_mode="Markdown")
+
+
+# ── Session end ───────────────────────────────────────────────────────────────
+
+async def _finish_session(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    state.state = S.IDLE
+    session_store.save(chat_id, state)
+    await _send(chat_id, "That's a wrap for today! 🎉\n\nSee you tomorrow. Keep the story going!", ctx)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _send(chat_id: int, text: str, ctx: ContextTypes.DEFAULT_TYPE,
+                parse_mode: str = None, reply_markup=None) -> None:
+    await ctx.bot.send_message(
+        chat_id=chat_id,
+        text=text,
+        parse_mode=parse_mode,
+        reply_markup=reply_markup,
+    )

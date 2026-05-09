@@ -1,0 +1,37 @@
+[
+  {"id": 1, "cefr_band": "A1", "question": "What does 你好 (nǐ hǎo) mean?", "options": {"A": "Thank you", "B": "Hello", "C": "Goodbye", "D": "Sorry"}, "correct": "B"},
+  {"id": 2, "cefr_band": "A1", "question": "Which word means 'water' in Chinese?", "options": {"A": "火 (huǒ)", "B": "风 (fēng)", "C": "水 (shuǐ)", "D": "土 (tǔ)"}, "correct": "C"},
+  {"id": 3, "cefr_band": "A1", "question": "How do you say 'one, two, three' in Chinese?", "options": {"A": "一、二、三", "B": "甲、乙、丙", "C": "大、中、小", "D": "上、中、下"}, "correct": "A"},
+  {"id": 4, "cefr_band": "A1", "question": "What does 我爱你 (wǒ ài nǐ) mean?", "options": {"A": "I miss you", "B": "I know you", "C": "I love you", "D": "I need you"}, "correct": "C"},
+  {"id": 5, "cefr_band": "A1", "question": "Which sentence means 'I am a student'?", "options": {"A": "我是老师。", "B": "我是学生。", "C": "我是医生。", "D": "我是工人。"}, "correct": "B"},
+
+  {"id": 6, "cefr_band": "A2", "question": "Complete the sentence: 我 ___ 吃饭。(I want to eat)", "options": {"A": "不", "B": "很", "C": "想", "D": "是"}, "correct": "C"},
+  {"id": 7, "cefr_band": "A2", "question": "What does 今天天气怎么样? mean?", "options": {"A": "What time is it today?", "B": "How is the weather today?", "C": "Where are you going today?", "D": "What did you eat today?"}, "correct": "B"},
+  {"id": 8, "cefr_band": "A2", "question": "Which is the correct measure word: 一 ___ 书 (one book)?", "options": {"A": "个", "B": "本", "C": "张", "D": "条"}, "correct": "B"},
+  {"id": 9, "cefr_band": "A2", "question": "How do you say 'I don't understand' in Chinese?", "options": {"A": "我不喜欢", "B": "我不知道", "C": "我不懂", "D": "我不去"}, "correct": "C"},
+  {"id": 10, "cefr_band": "A2", "question": "Which sentence correctly uses 了 (le) to indicate a completed action?", "options": {"A": "我明天吃了饭。", "B": "我昨天吃了饭。", "C": "我每天吃了饭。", "D": "我从来吃了饭。"}, "correct": "B"},
+
+  {"id": 11, "cefr_band": "B1", "question": "What does the 把 (bǎ) construction do in a sentence?", "options": {"A": "Marks the subject of the verb", "B": "Brings the object before the verb to emphasise the action done to it", "C": "Indicates a passive action", "D": "Expresses future tense"}, "correct": "B"},
+  {"id": 12, "cefr_band": "B1", "question": "Complete: 他说汉语说 ___ 很好。(He speaks Chinese very well)", "options": {"A": "得", "B": "了", "C": "过", "D": "着"}, "correct": "A"},
+  {"id": 13, "cefr_band": "B1", "question": "Which sentence correctly expresses 'the longer the better'?", "options": {"A": "越长越好", "B": "长了更好", "C": "很长很好", "D": "越好越长"}, "correct": "A"},
+  {"id": 14, "cefr_band": "B1", "question": "What does 虽然…但是… express?", "options": {"A": "Because…therefore…", "B": "If…then…", "C": "Although…but…", "D": "Not only…but also…"}, "correct": "C"},
+  {"id": 15, "cefr_band": "B1", "question": "Choose the correct sentence about an ongoing action: 她在 ___ 书。", "options": {"A": "看了", "B": "看过", "C": "看", "D": "看着"}, "correct": "C"},
+
+  {"id": 16, "cefr_band": "B2", "question": "Which sentence uses 被 (bèi) correctly in a passive construction?", "options": {"A": "我被吃了苹果。", "B": "苹果被我吃了。", "C": "苹果我被吃了。", "D": "被我苹果吃了。"}, "correct": "B"},
+  {"id": 17, "cefr_band": "B2", "question": "What nuance does 竟然 (jìngrán) add to a sentence?", "options": {"A": "Gradually or slowly", "B": "Unexpectedly or surprisingly", "C": "Necessarily or certainly", "D": "Repeatedly or persistently"}, "correct": "B"},
+  {"id": 18, "cefr_band": "B2", "question": "Complete: 他学中文学 ___ 三年了。(He has been studying Chinese for three years)", "options": {"A": "了", "B": "过", "C": "有", "D": "到"}, "correct": "C"},
+  {"id": 19, "cefr_band": "B2", "question": "Which chengyu (成语) means 'to kill two birds with one stone'?", "options": {"A": "马到成功", "B": "一石二鸟", "C": "半途而废", "D": "画蛇添足"}, "correct": "B"},
+  {"id": 20, "cefr_band": "B2", "question": "In formal written Chinese, which word replaces 因为 (because) for a more literary tone?", "options": {"A": "所以", "B": "但是", "C": "由于", "D": "虽然"}, "correct": "C"},
+
+  {"id": 21, "cefr_band": "C1", "question": "What is the rhetorical function of 难道…吗 (nándào…ma)?", "options": {"A": "Expresses a genuine question the speaker cannot answer", "B": "Creates a rhetorical question implying the opposite is obviously true", "C": "Politely softens a direct statement", "D": "Introduces a hypothetical condition"}, "correct": "B"},
+  {"id": 22, "cefr_band": "C1", "question": "Which sentence correctly uses 以…为… in a formal context meaning 'to take X as Y'?", "options": {"A": "他以学习汉语为目标。", "B": "他以为汉语学习。", "C": "以学习为他汉语。", "D": "他为以汉语学习目标。"}, "correct": "A"},
+  {"id": 23, "cefr_band": "C1", "question": "What does 不得不 (bùdébù) mean?", "options": {"A": "Definitely will not", "B": "Would rather not", "C": "Have no choice but to", "D": "Should not"}, "correct": "C"},
+  {"id": 24, "cefr_band": "C1", "question": "Which of these is a correct usage of 至于 (zhìyú)?", "options": {"A": "至于他来，我很高兴。", "B": "至于这个问题，我们下次再讨论。", "C": "他至于学习很努力。", "D": "至于他很聪明。"}, "correct": "B"},
+  {"id": 25, "cefr_band": "C1", "question": "The phrase 无论…都… is closest in meaning to which English structure?", "options": {"A": "The more…the more…", "B": "Either…or…", "C": "No matter…always…", "D": "Not only…but also…"}, "correct": "C"},
+
+  {"id": 26, "cefr_band": "C2", "question": "The classical Chinese phrase 学而时习之，不亦说乎 comes from which text?", "options": {"A": "道德经 (Dào Dé Jīng)", "B": "论语 (Lúnyǔ / Analects)", "C": "孙子兵法 (Sūnzǐ Bīngfǎ)", "D": "孟子 (Mèngzǐ)"}, "correct": "B"},
+  {"id": 27, "cefr_band": "C2", "question": "Which best describes the difference between 简洁 (jiǎnjié) and 简单 (jiǎndān)?", "options": {"A": "Both mean exactly the same thing", "B": "简洁 means concise and elegant; 简单 means simple or uncomplicated", "C": "简洁 means easy; 简单 means brief", "D": "简洁 is Classical Chinese; 简单 is Modern Chinese"}, "correct": "B"},
+  {"id": 28, "cefr_band": "C2", "question": "In the four-tone system, which tone contour does the third tone (上声) follow in isolation?", "options": {"A": "High and level", "B": "Rising from mid to high", "C": "Low dipping then rising", "D": "Sharp falling from high to low"}, "correct": "C"},
+  {"id": 29, "cefr_band": "C2", "question": "Which sentence demonstrates correct usage of the literary aspect marker 曾 (céng)?", "options": {"A": "他曾经明天去北京。", "B": "他曾在北京生活过多年。", "C": "他曾正在看书。", "D": "他曾每天跑步。"}, "correct": "B"},
+  {"id": 30, "cefr_band": "C2", "question": "What does the chengyu 纸上谈兵 (zhǐ shàng tán bīng) criticise?", "options": {"A": "Talking too much during battle", "B": "Theorising without practical experience", "C": "Writing false military reports", "D": "Retreating from a fight"}, "correct": "B"}
+]
