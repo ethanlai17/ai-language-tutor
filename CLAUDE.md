@@ -22,7 +22,7 @@ Tests require no real API keys — all LLM and Telegram calls are mocked.
 
 ## Architecture
 
-Multi-agent Telegram bot for Mandarin learning. Entry point: `main.py` → registers handlers → starts `APScheduler` → `run_polling()`.
+Multi-agent Telegram bot for Mandarin learning. Entry point: `main.py` → registers handlers → starts `APScheduler` via `post_init` hook (requires a running event loop) → `run_polling()`.
 
 ### Request flow
 
@@ -39,13 +39,18 @@ Every Telegram message/callback routes through `agents/orchestrator.py::handle()
 ### Daily session flow
 
 ```
-/study → vocab pool seeding (if < 10 items) → grammar pool seeding (if < 5)
-       → StoryAgent (one LLM call, cached in daily_stories table)
+/study → check daily_stories cache
+       → if cached: reload vocab/grammar from stored IDs (ensures story ↔ lesson consistency)
+       → if new: pool seeding → StoryAgent (one LLM call, saved to daily_stories)
        → STORY_DISPLAY → "Continue" button
-       → SRS reviews (due cards from srs_cards WHERE due_date <= today)
        → 5 × VOCAB_LESSON → VOCAB_QUIZ
        → GRAMMAR_LESSON → GRAMMAR_QUIZ → IDLE
+
+/review → fetch due cards (srs_cards WHERE due_date <= today)
+        → MCQ-style REVIEW_PROMPT → REVIEW_ANSWER_SHOWN (rate 1–4) → repeat → IDLE
 ```
+
+**Important:** vocab/grammar IDs are stored in `daily_stories.vocab_ids` (JSON) and `daily_stories.grammar_id`. On repeat `/study` calls within the same day, the orchestrator reads these IDs and calls `queries.get_vocab_by_ids()` to load the exact same items the story was written around — preventing a mismatch between cached story and newly selected words.
 
 ### Agents
 
@@ -57,7 +62,7 @@ Each agent in `agents/` makes LLM calls via `agents/base.py::llm_call()` (async,
 | `vocab_agent.py` | Pool seeding (batch of 20), daily selection, user-word enrichment, quiz generation |
 | `grammar_agent.py` | Pool seeding (batch of 10), daily selection, quiz generation |
 | `story_agent.py` | Serialised story using today's 5 vocab + 1 grammar; continues from `story_hook` stored in `daily_stories` table |
-| `review_agent.py` | SM-2 scheduling, fresh-context card presentation, free-text answer evaluation |
+| `review_agent.py` | SM-2 scheduling, MCQ-style card presentation (no free-text evaluation) |
 | `orchestrator.py` | Pure routing, no LLM calls |
 
 ### Spaced repetition

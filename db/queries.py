@@ -82,6 +82,17 @@ def get_vocab_by_id(item_id: int) -> Optional[sqlite3.Row]:
         return conn.execute("SELECT * FROM vocab_items WHERE item_id = ?", (item_id,)).fetchone()
 
 
+def get_vocab_by_ids(item_ids: list[int]) -> list[sqlite3.Row]:
+    if not item_ids:
+        return []
+    placeholders = ",".join("?" * len(item_ids))
+    with get_conn() as conn:
+        return conn.execute(
+            f"SELECT * FROM vocab_items WHERE item_id IN ({placeholders})",
+            item_ids
+        ).fetchall()
+
+
 def get_known_vocab(user_id: int, limit: int = 20) -> list[sqlite3.Row]:
     with get_conn() as conn:
         return conn.execute("""

@@ -26,14 +26,6 @@ async def generate_daily_story(
     vocab_items: list[sqlite3.Row],
     grammar_item: sqlite3.Row,
 ) -> dict:
-    cached = queries.get_daily_story(user_id, today)
-    if cached:
-        return {
-            "story_text": cached["story_text"],
-            "story_hook": cached["story_hook"],
-            "word_callbacks": {},
-        }
-
     previous_hook = queries.get_last_story_hook(user_id)
 
     vocab_list = [

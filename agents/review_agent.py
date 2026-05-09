@@ -5,14 +5,9 @@ from core.sm2 import calculate_next_review, RATING_TO_QUALITY
 from db import queries
 
 _SYSTEM_PRESENT = """You are a Mandarin Chinese spaced-repetition reviewer.
-Present the given item as a recall prompt in a FRESH context — never reuse the original example sentence.
+Present the given item as a multiple-choice recall question in a FRESH context — never reuse the original example sentence.
 Use a new scenario, sentence, or angle to test the same concept.
-Return JSON: {{"prompt": "<question to show the student>", "answer": "<correct answer with explanation>"}}"""
-
-_SYSTEM_EVALUATE = """You are a strict-but-fair Mandarin Chinese answer evaluator.
-The student answered a recall question. Evaluate if their answer is correct.
-Be strict about meaning but lenient about minor pinyin tone marks and romanisation variants.
-Return JSON: {{"correct": <true|false>, "feedback": "<1-2 sentence feedback>"}}"""
+Return JSON: {{"prompt": "<question>", "options": {{"A": "", "B": "", "C": "", "D": ""}}, "correct": "<A|B|C|D>", "explanation": "<1-2 sentences>"}}"""
 
 
 async def present_review_card(card: sqlite3.Row) -> dict:
@@ -24,13 +19,6 @@ async def present_review_card(card: sqlite3.Row) -> dict:
         context = f"Grammar pattern: {item['pattern']}\nExplanation: {item['explanation']}\nOriginal example: {item['example_sent']}"
 
     return await llm_call(_SYSTEM_PRESENT, f"Item to review:\n{context}")
-
-
-async def evaluate_answer(question: str, correct_answer: str, user_answer: str) -> dict:
-    return await llm_call(
-        _SYSTEM_EVALUATE,
-        f"Question: {question}\nCorrect answer: {correct_answer}\nStudent answer: {user_answer}"
-    )
 
 
 def process_rating(card_id: int, rating: int) -> None:

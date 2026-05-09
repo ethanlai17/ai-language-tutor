@@ -6,10 +6,10 @@ A personal Mandarin Chinese tutor that runs as a Telegram bot. It learns your le
 
 **First run** — a 30-question multiple-choice placement test assigns you a CEFR level (A1–C2).
 
-**Every day** — send `/study` to get:
-- A continuing story that weaves together all 5 new vocabulary words and 1 new grammar point. The story picks up exactly where yesterday's cliffhanger left off (awkward transitions are intentional — they make words stick).
-- Any vocabulary or grammar cards due for review, scheduled by the SM-2 spaced repetition algorithm.
-- A quiz on each new word and grammar point before moving on.
+**Every day** — two commands keep you progressing:
+
+- `/study` — a continuing story that weaves together 5 new vocabulary words and 1 new grammar point, picking up exactly where yesterday's cliffhanger left off (awkward transitions are intentional — they make words stick). Followed by a quiz on each new word and grammar point.
+- `/review` — work through any cards due today using multiple-choice questions, scheduled by the SM-2 spaced repetition algorithm. Rate each answer 1–4 to set the next review interval.
 
 **Anytime** — send `/add 某个词` to add your own word. The bot enriches it with pinyin, meaning, example sentence, and a mnemonic, then adds it to your review deck immediately.
 
@@ -62,8 +62,9 @@ To keep it running persistently, use a tool like `screen`, `tmux`, or deploy it 
 | Command | What it does |
 |---|---|
 | `/start` | Run the placement test (first time only), or jump straight to `/study` |
-| `/study` | Start today's lesson — story, reviews, new vocab, new grammar |
-| `/add <word>` | Add a Mandarin word to your personal deck |
+| `/study` | Today's story + quiz on each new word and grammar point |
+| `/review` | Multiple-choice review of all SRS cards due today |
+| `/add <word>` | Add a Mandarin word to your personal deck (inline: `/add 某个词`) |
 | `/stats` | See your current level, deck size, cards due today, and total reviews |
 
 ## Cost
