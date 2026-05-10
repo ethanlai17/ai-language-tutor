@@ -45,6 +45,7 @@ class SessionState:
     session_config_vocab_count: int | None = None
     session_config_grammar_count: int | None = None
     session_config_command: str | None = None
+    session_total_vocab: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -69,6 +70,7 @@ class SessionState:
             "session_config_vocab_count": self.session_config_vocab_count,
             "session_config_grammar_count": self.session_config_grammar_count,
             "session_config_command": self.session_config_command,
+            "session_total_vocab": self.session_total_vocab,
         }
 
     @classmethod
@@ -95,4 +97,5 @@ class SessionState:
         s.session_config_vocab_count = d.get("session_config_vocab_count")
         s.session_config_grammar_count = d.get("session_config_grammar_count")
         s.session_config_command = d.get("session_config_command")
+        s.session_total_vocab = d.get("session_total_vocab", 0)
         return s

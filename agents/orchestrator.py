@@ -147,14 +147,15 @@ async def _handle_config_type(chat_id: int, state: SessionState, text: str,
         await _send(chat_id, "Please type `v`, `g`, or `b`.", ctx, parse_mode="Markdown")
         return
     state.session_config_type = t
+    verb = "review" if state.session_config_command == "review" else "learn"
     if t in ("v", "b"):
         state.state = S.SESSION_CONFIG_VOCAB_COUNT
         session_store.save(chat_id, state)
-        await _send(chat_id, "How many words do you want to learn now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+        await _send(chat_id, f"How many words do you want to {verb} now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
     else:
         state.state = S.SESSION_CONFIG_GRAMMAR_COUNT
         session_store.save(chat_id, state)
-        await _send(chat_id, "How many grammar points do you want to learn now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+        await _send(chat_id, f"How many grammar points do you want to {verb} now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
 
 
 async def _handle_config_vocab_count(chat_id: int, state: SessionState, text: str,
@@ -165,9 +166,10 @@ async def _handle_config_vocab_count(chat_id: int, state: SessionState, text: st
         return
     state.session_config_vocab_count = n
     if state.session_config_type == "b":
+        verb = "review" if state.session_config_command == "review" else "learn"
         state.state = S.SESSION_CONFIG_GRAMMAR_COUNT
         session_store.save(chat_id, state)
-        await _send(chat_id, "How many grammar points do you want to learn now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+        await _send(chat_id, f"How many grammar points do you want to {verb} now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
     else:
         session_store.save(chat_id, state)
         await _execute_session_config(chat_id, state, ctx)
@@ -219,6 +221,8 @@ async def _run_study(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAUL
         grammar_id = cached_story["grammar_id"] if grammar_n else None
         vocab_items = queries.get_vocab_by_ids(vocab_ids)
         grammar_item = queries.get_grammar_by_id(grammar_id) if grammar_id else None
+        if grammar_n and not grammar_item:
+            grammar_item = await grammar_agent.get_daily_grammar(chat_id, cefr, today)
         story = {
             "story_text": cached_story["story_text"],
             "story_hook": cached_story["story_hook"],
@@ -243,6 +247,7 @@ async def _run_study(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAUL
         story = await story_agent.generate_daily_story(chat_id, today, items_for_story, grammar_for_story)
 
     state.pending_vocab_ids = [v["item_id"] for v in vocab_items]
+    state.session_total_vocab = len(state.pending_vocab_ids)
     state.pending_grammar_ids = [grammar_item["item_id"]] if grammar_item else []
     state.word_callbacks = story.get("word_callbacks", {})
     state.state = S.STORY_DISPLAY
@@ -410,7 +415,7 @@ async def _send_next_vocab_lesson(chat_id: int, state: SessionState, ctx: Contex
     callback_line = f"\n\n_💡 Story moment: {callback}_" if callback else ""
 
     text = (
-        f"📚 *New word {5 - len(state.pending_vocab_ids) + 1}/5*\n\n"
+        f"📚 *New word {state.session_total_vocab - len(state.pending_vocab_ids) + 1}/{state.session_total_vocab}*\n\n"
         f"*{item['word']}* ({item['pinyin']})\n"
         f"➜ {item['meaning']}\n\n"
         f"📝 {item['example_sent']}\n\n"

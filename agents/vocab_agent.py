@@ -5,7 +5,9 @@ from db import queries
 _SYSTEM_GENERATE = """You are a Mandarin Chinese vocabulary expert.
 Generate a batch of vocabulary items for a {level} learner.
 Return JSON: {{"items": [{{"word":"", "pinyin":"", "meaning":"", "example_sent":"", "mnemonic":""}}]}}
-Produce exactly {n} items. Use simplified characters. Meanings in English."""
+Produce exactly {n} items. Use simplified characters. Meanings in English.
+Only include concrete content words: nouns, verbs, adjectives, and adverbs.
+Do NOT include conjunctions, particles, grammar patterns, or sentence structures (e.g. 虽然, 因为, 把, 是…的)."""
 
 _SYSTEM_ENRICH = """You are a Mandarin Chinese vocabulary expert.
 Given a Chinese word, return: pinyin, English meaning, a natural example sentence in Chinese (with English translation), and a vivid mnemonic.
