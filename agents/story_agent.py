@@ -1,4 +1,3 @@
-import sqlite3
 from agents.base import llm_call
 from db import queries
 
@@ -23,9 +22,13 @@ Return ONLY valid JSON in this exact shape:
 async def generate_daily_story(
     user_id: int,
     today: str,
-    vocab_items: list[sqlite3.Row],
-    grammar_item: sqlite3.Row,
+    vocab_items: list,
+    grammar_item,
 ) -> dict:
+    cached = queries.get_daily_story(user_id, today)
+    if cached:
+        return {"story_text": cached["story_text"], "story_hook": cached["story_hook"], "word_callbacks": {}}
+
     previous_hook = queries.get_last_story_hook(user_id)
 
     vocab_list = [
@@ -39,8 +42,10 @@ async def generate_daily_story(
     else:
         prompt_parts.append("This is DAY 1 — start a brand-new story. Make it memorable and set up a rich world.")
 
-    prompt_parts.append(f"\nToday's vocabulary to use:\n" + "\n".join(f"- {v}" for v in vocab_list))
-    prompt_parts.append(f"\nToday's grammar pattern to demonstrate: {grammar_item['pattern']}")
+    if vocab_list:
+        prompt_parts.append(f"\nToday's vocabulary to use:\n" + "\n".join(f"- {v}" for v in vocab_list))
+    if grammar_item:
+        prompt_parts.append(f"\nToday's grammar pattern to demonstrate: {grammar_item['pattern']}")
     prompt_parts.append("\nWrite the next chapter of the story now.")
 
     result = await llm_call(_SYSTEM, "\n".join(prompt_parts))
@@ -52,7 +57,7 @@ async def generate_daily_story(
         story_text=result.get("story_text", ""),
         story_hook=result.get("story_hook", ""),
         vocab_ids=vocab_ids,
-        grammar_id=grammar_item["item_id"],
+        grammar_id=grammar_item["item_id"] if grammar_item else 0,
     )
 
     return result

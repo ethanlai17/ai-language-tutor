@@ -165,8 +165,14 @@ def create_srs_card(user_id: int, item_type: str, item_id: int, due_date: str) -
         return cur.lastrowid
 
 
-def get_due_cards(user_id: int, today: str) -> list[sqlite3.Row]:
+def get_due_cards(user_id: int, today: str, item_type: str | None = None) -> list[sqlite3.Row]:
     with get_conn() as conn:
+        if item_type:
+            return conn.execute("""
+                SELECT * FROM srs_cards
+                WHERE user_id = ? AND due_date <= ? AND item_type = ?
+                ORDER BY due_date ASC
+            """, (user_id, today, item_type)).fetchall()
         return conn.execute("""
             SELECT * FROM srs_cards
             WHERE user_id = ? AND due_date <= ?

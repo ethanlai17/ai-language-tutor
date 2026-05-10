@@ -233,14 +233,6 @@ async def test_review_agent_present_vocab_card():
     assert result["prompt"] == "What does 月 mean?"
 
 
-@pytest.mark.asyncio
-async def test_review_agent_evaluate_answer():
-    from agents.review_agent import evaluate_answer
-    mock = {"correct": True, "feedback": "Correct! 月 means moon."}
-    with patch("agents.review_agent.llm_call", new=AsyncMock(return_value=mock)):
-        result = await evaluate_answer("What does 月 mean?", "moon", "moon")
-    assert result["correct"] is True
-
 
 def test_review_agent_process_rating_updates_card():
     from db.queries import insert_vocab, create_srs_card, get_card_by_id

@@ -16,6 +16,9 @@ class ConversationState(str, Enum):
     GRAMMAR_QUIZ = "GRAMMAR_QUIZ"
     USER_ADD_VOCAB_WORD = "USER_ADD_VOCAB_WORD"
     USER_ADD_VOCAB_CONFIRM = "USER_ADD_VOCAB_CONFIRM"
+    SESSION_CONFIG_TYPE = "SESSION_CONFIG_TYPE"
+    SESSION_CONFIG_VOCAB_COUNT = "SESSION_CONFIG_VOCAB_COUNT"
+    SESSION_CONFIG_GRAMMAR_COUNT = "SESSION_CONFIG_GRAMMAR_COUNT"
 
 
 @dataclass
@@ -38,6 +41,10 @@ class SessionState:
     review_answer: str | None = None
     quiz_correct: str | None = None
     quiz_explanation: str | None = None
+    session_config_type: str | None = None
+    session_config_vocab_count: int | None = None
+    session_config_grammar_count: int | None = None
+    session_config_command: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -58,6 +65,10 @@ class SessionState:
             "review_answer": self.review_answer,
             "quiz_correct": self.quiz_correct,
             "quiz_explanation": self.quiz_explanation,
+            "session_config_type": self.session_config_type,
+            "session_config_vocab_count": self.session_config_vocab_count,
+            "session_config_grammar_count": self.session_config_grammar_count,
+            "session_config_command": self.session_config_command,
         }
 
     @classmethod
@@ -80,4 +91,8 @@ class SessionState:
         s.review_answer = d.get("review_answer")
         s.quiz_correct = d.get("quiz_correct")
         s.quiz_explanation = d.get("quiz_explanation")
+        s.session_config_type = d.get("session_config_type")
+        s.session_config_vocab_count = d.get("session_config_vocab_count")
+        s.session_config_grammar_count = d.get("session_config_grammar_count")
+        s.session_config_command = d.get("session_config_command")
         return s

@@ -176,7 +176,7 @@ def _mock_quiz(correct: str = "A") -> dict:
 
 
 async def _run_study(ctx, vocab_patch=None, grammar_patch=None, story_patch=None):
-    """Run /study with all three pool/story LLMs mocked."""
+    """Run /study through config (b, 5 vocab, 1 grammar) with all LLMs mocked."""
     from agents.orchestrator import handle
     vp = vocab_patch or _mock_vocab_batch()
     gp = grammar_patch or _mock_grammar_batch()
@@ -184,7 +184,10 @@ async def _run_study(ctx, vocab_patch=None, grammar_patch=None, story_patch=None
     with patch("agents.vocab_agent.llm_call", new=AsyncMock(return_value=vp)), \
          patch("agents.grammar_agent.llm_call", new=AsyncMock(return_value=gp)), \
          patch("agents.story_agent.llm_call", new=AsyncMock(return_value=sp)):
-        await handle(make_update("/study"), ctx)
+        await handle(make_update("/study"), ctx)   # → SESSION_CONFIG_TYPE
+        await handle(make_update("b"), ctx)        # → SESSION_CONFIG_VOCAB_COUNT
+        await handle(make_update("5"), ctx)        # → SESSION_CONFIG_GRAMMAR_COUNT
+        await handle(make_update("1"), ctx)        # → STORY_DISPLAY
 
 
 @pytest.mark.asyncio
@@ -300,23 +303,25 @@ async def test_review_flow_with_due_cards():
     create_srs_card(USER_ID, "vocab", iid, TODAY)
 
     ctx = make_ctx()
-    await _run_study(ctx)
-
-    mock_present = {"prompt": "What does 山 mean?", "answer": "mountain"}
-    mock_eval = {"correct": True, "feedback": "Yes, 山 means mountain."}
+    mock_present = {
+        "prompt": "Which means mountain?",
+        "options": {"A": "mountain", "B": "river", "C": "cloud", "D": "fire"},
+        "correct": "A",
+        "explanation": "山 means mountain.",
+    }
 
     with patch("agents.review_agent.llm_call", new=AsyncMock(return_value=mock_present)):
-        await handle(make_update("continue", is_callback=True), ctx)
+        await handle(make_update("/review"), ctx)  # → SESSION_CONFIG_TYPE
+        await handle(make_update("v"), ctx)        # → SESSION_CONFIG_VOCAB_COUNT
+        await handle(make_update("w"), ctx)        # → REVIEW_PROMPT (default 3, but 1 card exists)
 
     assert session_store.get(USER_ID).state == ConversationState.REVIEW_PROMPT
 
-    with patch("agents.review_agent.llm_call", new=AsyncMock(return_value=mock_eval)):
-        await handle(make_update("mountain"), ctx)
-
+    await handle(make_update("A", is_callback=True), ctx)
     assert session_store.get(USER_ID).state == ConversationState.REVIEW_ANSWER_SHOWN
 
     await handle(make_update("4", is_callback=True), ctx)
-    assert session_store.get(USER_ID).state == ConversationState.VOCAB_LESSON
+    assert session_store.get(USER_ID).state == ConversationState.IDLE
 
 
 # ── /add command flow ─────────────────────────────────────────────────────────

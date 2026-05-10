@@ -41,7 +41,7 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _cmd_start(chat_id, state, ctx)
         return
     if text == "/study":
-        await _cmd_study(chat_id, state, ctx)
+        await _cmd_session_config(chat_id, state, ctx, "study")
         return
     if text == "/add" or text.startswith("/add "):
         word_inline = text[len("/add "):].strip() if text.startswith("/add ") else ""
@@ -51,7 +51,7 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _cmd_stats(chat_id, ctx)
         return
     if text == "/review":
-        await _cmd_review(chat_id, state, ctx)
+        await _cmd_session_config(chat_id, state, ctx, "review")
         return
 
     # State machine dispatch
@@ -59,7 +59,7 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if s == S.PLACEMENT_QUESTION:
         await _handle_placement_answer(chat_id, state, text, ctx)
     elif s == S.PLACEMENT_COMPLETE:
-        await _cmd_study(chat_id, state, ctx)
+        await _cmd_session_config(chat_id, state, ctx, "study")
     elif s == S.STORY_DISPLAY:
         if text == "continue":
             await _start_lessons(chat_id, state, ctx)
@@ -81,6 +81,12 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     elif s == S.GRAMMAR_QUIZ:
         if text in ("A", "B", "C", "D"):
             await _handle_grammar_quiz_answer(chat_id, state, text, ctx)
+    elif s == S.SESSION_CONFIG_TYPE:
+        await _handle_config_type(chat_id, state, text, ctx)
+    elif s == S.SESSION_CONFIG_VOCAB_COUNT:
+        await _handle_config_vocab_count(chat_id, state, text, ctx)
+    elif s == S.SESSION_CONFIG_GRAMMAR_COUNT:
+        await _handle_config_grammar_count(chat_id, state, text, ctx)
     elif s == S.USER_ADD_VOCAB_WORD:
         await _handle_add_word_input(chat_id, state, text, ctx)
     elif s == S.USER_ADD_VOCAB_CONFIRM:
@@ -99,7 +105,7 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 async def _cmd_start(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user_row = queries.get_user(chat_id)
     if user_row and user_row["placement_done"]:
-        await _cmd_study(chat_id, state, ctx)
+        await _cmd_session_config(chat_id, state, ctx, "study")
         return
 
     await _send(chat_id,
@@ -116,47 +122,134 @@ async def _cmd_start(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAUL
     await _send_placement_question(chat_id, state, ctx)
 
 
-async def _cmd_study(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def _cmd_session_config(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE,
+                              command: str) -> None:
     user_row = queries.get_user(chat_id)
     if not user_row or not user_row["placement_done"]:
         await _cmd_start(chat_id, state, ctx)
         return
+    state.session_config_command = command
+    state.session_config_type = None
+    state.session_config_vocab_count = None
+    state.session_config_grammar_count = None
+    state.state = S.SESSION_CONFIG_TYPE
+    session_store.save(chat_id, state)
+    await _send(chat_id,
+        "Vocabulary or grammar or both?\nType `v` for vocabulary, `g` for grammar, or `b` for both.",
+        ctx, parse_mode="Markdown"
+    )
 
+
+async def _handle_config_type(chat_id: int, state: SessionState, text: str,
+                               ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    t = text.strip().lower()
+    if t not in ("v", "g", "b"):
+        await _send(chat_id, "Please type `v`, `g`, or `b`.", ctx, parse_mode="Markdown")
+        return
+    state.session_config_type = t
+    if t in ("v", "b"):
+        state.state = S.SESSION_CONFIG_VOCAB_COUNT
+        session_store.save(chat_id, state)
+        await _send(chat_id, "How many words do you want to learn now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+    else:
+        state.state = S.SESSION_CONFIG_GRAMMAR_COUNT
+        session_store.save(chat_id, state)
+        await _send(chat_id, "How many grammar points do you want to learn now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+
+
+async def _handle_config_vocab_count(chat_id: int, state: SessionState, text: str,
+                                      ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    n = _parse_count(text, default=3)
+    if n is None:
+        await _send(chat_id, "Please enter a number (e.g. 3) or `w` to let the bot decide.", ctx, parse_mode="Markdown")
+        return
+    state.session_config_vocab_count = n
+    if state.session_config_type == "b":
+        state.state = S.SESSION_CONFIG_GRAMMAR_COUNT
+        session_store.save(chat_id, state)
+        await _send(chat_id, "How many grammar points do you want to learn now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+    else:
+        session_store.save(chat_id, state)
+        await _execute_session_config(chat_id, state, ctx)
+
+
+async def _handle_config_grammar_count(chat_id: int, state: SessionState, text: str,
+                                        ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    n = _parse_count(text, default=1)
+    if n is None:
+        await _send(chat_id, "Please enter a number (e.g. 1) or `w` to let the bot decide.", ctx, parse_mode="Markdown")
+        return
+    state.session_config_grammar_count = n
+    session_store.save(chat_id, state)
+    await _execute_session_config(chat_id, state, ctx)
+
+
+def _parse_count(text: str, default: int) -> int | None:
+    t = text.strip().lower()
+    if t == "w":
+        return default
+    if t.isdigit() and 1 <= int(t) <= 20:
+        return int(t)
+    return None
+
+
+async def _execute_session_config(chat_id: int, state: SessionState,
+                                   ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    t = state.session_config_type
+    vocab_n = state.session_config_vocab_count if t in ("v", "b") else 0
+    grammar_n = state.session_config_grammar_count if t in ("g", "b") else 0
+    if state.session_config_command == "study":
+        await _run_study(chat_id, state, ctx, vocab_n, grammar_n)
+    else:
+        item_type = {"v": "vocab", "g": "grammar", "b": None}[t]
+        count = (vocab_n or 0) + (grammar_n or 0) if t == "b" else (vocab_n or grammar_n)
+        await _run_review(chat_id, state, ctx, item_type, count)
+
+
+async def _run_study(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE,
+                     vocab_n: int, grammar_n: int) -> None:
+    user_row = queries.get_user(chat_id)
     today = date.today().isoformat()
     cefr = user_row["cefr_level"]
 
     cached_story = queries.get_daily_story(chat_id, today)
     if cached_story:
         import json as _json
-        vocab_ids = _json.loads(cached_story["vocab_ids"])
+        vocab_ids = _json.loads(cached_story["vocab_ids"])[:vocab_n] if vocab_n else []
+        grammar_id = cached_story["grammar_id"] if grammar_n else None
         vocab_items = queries.get_vocab_by_ids(vocab_ids)
-        grammar_item = queries.get_grammar_by_id(cached_story["grammar_id"])
+        grammar_item = queries.get_grammar_by_id(grammar_id) if grammar_id else None
         story = {
             "story_text": cached_story["story_text"],
             "story_hook": cached_story["story_hook"],
             "word_callbacks": {},
         }
     else:
-        vocab_items = await vocab_agent.get_daily_vocab(chat_id, cefr, today)
-        grammar_item = await grammar_agent.get_daily_grammar(chat_id, cefr, today)
+        vocab_items = await vocab_agent.get_daily_vocab(chat_id, cefr, today, n=vocab_n) if vocab_n else []
+        grammar_item = await grammar_agent.get_daily_grammar(chat_id, cefr, today) if grammar_n else None
 
-        if not vocab_items or not grammar_item:
+        if vocab_n and not vocab_items:
             await _send(chat_id, "Could not load today's lesson. Please try again shortly.", ctx)
             return
+        if grammar_n and not grammar_item:
+            await _send(chat_id, "Could not load today's grammar. Please try again shortly.", ctx)
+            return
 
-        story = await story_agent.generate_daily_story(chat_id, today, vocab_items, grammar_item)
+        items_for_story = vocab_items if vocab_items else []
+        grammar_for_story = grammar_item if grammar_item else None
+        if not items_for_story and not grammar_for_story:
+            await _send(chat_id, "Nothing to study — try a different selection.", ctx)
+            return
+        story = await story_agent.generate_daily_story(chat_id, today, items_for_story, grammar_for_story)
 
     state.pending_vocab_ids = [v["item_id"] for v in vocab_items]
-    state.pending_grammar_ids = [grammar_item["item_id"]]
+    state.pending_grammar_ids = [grammar_item["item_id"]] if grammar_item else []
     state.word_callbacks = story.get("word_callbacks", {})
     state.state = S.STORY_DISPLAY
     session_store.save(chat_id, state)
 
-    story_text = story.get("story_text", "")
-    hook = story.get("story_hook", "")
-
     await _send(chat_id,
-        f"📖 *Today's Story*\n\n{story_text}\n\n_{hook}_",
+        f"📖 *Today's Story*\n\n{story.get('story_text', '')}\n\n_{story.get('story_hook', '')}_",
         ctx, parse_mode="Markdown",
         reply_markup=keyboards.continue_keyboard()
     )
@@ -236,14 +329,11 @@ async def _start_lessons(chat_id: int, state: SessionState, ctx: ContextTypes.DE
     await _send_next_vocab_lesson(chat_id, state, ctx)
 
 
-async def _cmd_review(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    user_row = queries.get_user(chat_id)
-    if not user_row or not user_row["placement_done"]:
-        await _cmd_start(chat_id, state, ctx)
-        return
-
+async def _run_review(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE,
+                      item_type: str | None, count: int) -> None:
     today = date.today().isoformat()
-    due_cards = queries.get_due_cards(chat_id, today)
+    due_cards = queries.get_due_cards(chat_id, today, item_type=item_type)
+    due_cards = due_cards[:count] if count else due_cards
     state.pending_review_cards = [c["card_id"] for c in due_cards]
 
     if not state.pending_review_cards:

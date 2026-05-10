@@ -40,9 +40,9 @@ async def ensure_vocab_pool(user_id: int, cefr_level: str, today: str) -> None:
             )
 
 
-async def get_daily_vocab(user_id: int, cefr_level: str, today: str) -> list[sqlite3.Row]:
+async def get_daily_vocab(user_id: int, cefr_level: str, today: str, n: int = 5) -> list[sqlite3.Row]:
     await ensure_vocab_pool(user_id, cefr_level, today)
-    return queries.select_daily_vocab(user_id, cefr_level, today, n=5)
+    return queries.select_daily_vocab(user_id, cefr_level, today, n=n)
 
 
 async def enrich_user_word(word: str) -> dict:
