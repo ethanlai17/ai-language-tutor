@@ -7,6 +7,7 @@ import agents.vocab_agent as vocab_agent
 import agents.grammar_agent as grammar_agent
 import agents.story_agent as story_agent
 import agents.review_agent as review_agent
+import agents.explanation_agent as explanation_agent
 from bot import keyboards
 from config import LEARNING_LANGUAGE
 from core.state_machine import ConversationState as S, SessionState
@@ -36,6 +37,20 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     queries.upsert_user(chat_id, user.username or user.first_name)
 
     state = session_store.get(chat_id)
+
+    # Native Telegram reply to a bot message → forward to DeepSeek for explanation
+    if (
+        not update.callback_query
+        and update.message
+        and update.message.reply_to_message
+        and update.message.reply_to_message.from_user
+        and update.message.reply_to_message.from_user.id == ctx.bot.id
+        and not text.startswith("/")
+    ):
+        bot_msg = update.message.reply_to_message.text or update.message.reply_to_message.caption or ""
+        answer = await explanation_agent.explain(text, bot_msg, LEARNING_LANGUAGE)
+        await _send(chat_id, answer, ctx)
+        return
 
     # Command overrides
     if text == "/start":

@@ -402,3 +402,70 @@ async def test_session_persists_across_cache_clear():
 
     state = session_store.get(USER_ID)
     assert state.state == ConversationState.STORY_DISPLAY
+
+
+# ── Native reply → explanation ────────────────────────────────────────────────
+
+def make_reply_update(user_text: str, bot_message_text: str, bot_id: int = 1) -> MagicMock:
+    update = MagicMock()
+    user = MagicMock()
+    user.id = USER_ID
+    user.username = "testuser"
+    user.first_name = "Test"
+
+    replied_msg = MagicMock()
+    replied_msg.text = bot_message_text
+    replied_msg.caption = None
+    replied_msg.from_user = MagicMock()
+    replied_msg.from_user.id = bot_id
+
+    update.callback_query = None
+    update.message = MagicMock()
+    update.message.text = user_text
+    update.message.reply_to_message = replied_msg
+    update.effective_user = user
+    return update
+
+
+@pytest.mark.asyncio
+async def test_native_reply_forwarded_to_deepseek():
+    _setup_user("A1")
+    from agents.orchestrator import handle
+    from core.state_machine import ConversationState
+    from core import session_store
+
+    ctx = make_ctx()
+    ctx.bot.id = 1  # bot's own ID
+
+    # Put session into VOCAB_QUIZ so state should be preserved after reply
+    state = session_store.get(USER_ID)
+    state.state = ConversationState.VOCAB_QUIZ
+    session_store.save(USER_ID, state)
+
+    bot_msg = "🎯 *Quick quiz!*\n\nWhat does 山 mean?\n\nA) mountain\nB) river\nC) cloud\nD) fire"
+    with patch("agents.explanation_agent.llm_call_text", new=AsyncMock(return_value="山 means mountain.")):
+        await handle(make_reply_update("why is B wrong?", bot_msg, bot_id=1), ctx)
+
+    msgs = all_messages(ctx)
+    assert any("mountain" in m for m in msgs)
+    # Session state must be unchanged
+    assert session_store.get(USER_ID).state == ConversationState.VOCAB_QUIZ
+
+
+@pytest.mark.asyncio
+async def test_command_reply_not_intercepted():
+    _setup_user("A1")
+    from agents.orchestrator import handle
+    from core.state_machine import ConversationState
+    from core import session_store
+
+    ctx = make_ctx()
+    ctx.bot.id = 1
+
+    # /study as a native reply should route normally, not to explanation agent
+    with patch("agents.explanation_agent.explain", new=AsyncMock()) as mock_explain:
+        await handle(make_reply_update("/study", "some bot message", bot_id=1), ctx)
+
+    mock_explain.assert_not_called()
+    # /study triggers session config flow
+    assert session_store.get(USER_ID).state == ConversationState.SESSION_CONFIG_TYPE

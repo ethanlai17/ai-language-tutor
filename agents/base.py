@@ -17,6 +17,25 @@ def get_client() -> openai.AsyncOpenAI:
     return _client
 
 
+async def llm_call_text(system: str, user: str, max_retries: int = 3) -> str:
+    client = get_client()
+    for attempt in range(max_retries):
+        try:
+            resp = await client.chat.completions.create(
+                model=DEEPSEEK_MODEL,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.9,
+            )
+            return resp.choices[0].message.content
+        except openai.APIError:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(2 ** attempt)
+
+
 async def llm_call(system: str, user: str, max_retries: int = 3) -> dict:
     client = get_client()
     for attempt in range(max_retries):
