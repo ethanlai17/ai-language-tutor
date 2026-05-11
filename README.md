@@ -1,6 +1,6 @@
 # AI Language Tutor
 
-A personal language tutor that runs as a Telegram bot. It learns your level, teaches you new words and grammar every day through a continuing serialised story, and uses spaced repetition (like Anki) to make sure you actually remember what you've learned. Works with any language — set `LEARNING_LANGUAGE` in your `.env` to get started.
+A personal language tutor that runs as a Telegram bot. It learns your level, teaches you new words and grammar every day through a continuing serialised story, and uses spaced repetition (like Anki) to make sure you actually remember what you've learned. A streak system, activity reports, and a nightly reminder keep you consistent. Works with any language — set `LEARNING_LANGUAGE` in your `.env` to get started.
 
 ## What it does
 
