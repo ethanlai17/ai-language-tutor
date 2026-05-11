@@ -1,13 +1,18 @@
 import sqlite3
 from datetime import date, timedelta
 from agents.base import llm_call
+from config import LEARNING_LANGUAGE
 from core.sm2 import calculate_next_review, RATING_TO_QUALITY
 from db import queries
 
-_SYSTEM_PRESENT = """You are a Mandarin Chinese spaced-repetition reviewer.
+_SYSTEM_PRESENT = f"""You are a {LEARNING_LANGUAGE} spaced-repetition reviewer.
 Present the given item as a multiple-choice recall question in a FRESH context — never reuse the original example sentence.
 Use a new scenario, sentence, or angle to test the same concept.
-Return JSON: {{"prompt": "<question>", "options": {{"A": "", "B": "", "C": "", "D": ""}}, "correct": "<A|B|C|D>", "explanation": "<1-2 sentences>"}}"""
+Rules for the JSON fields:
+- "prompt": write the instruction line in the target language with its English translation in parentheses on the same line, then the target language sentence on the next line followed by its English translation in parentheses on the same line
+- "options": target language only, no translations
+- "explanation": write the explanation in the target language followed immediately by its English translation in parentheses
+Return JSON: {{"prompt": "<question with inline English>", "options": {{"A": "", "B": "", "C": "", "D": ""}}, "correct": "<A|B|C|D>", "explanation": "<target language> (<English translation>)"}}"""
 
 
 async def present_review_card(card: sqlite3.Row) -> dict:

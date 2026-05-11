@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -8,6 +8,7 @@ import agents.grammar_agent as grammar_agent
 import agents.story_agent as story_agent
 import agents.review_agent as review_agent
 from bot import keyboards
+from config import LEARNING_LANGUAGE
 from core.state_machine import ConversationState as S, SessionState
 from core import session_store
 from db import queries
@@ -50,6 +51,9 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if text == "/stats":
         await _cmd_stats(chat_id, ctx)
         return
+    if text == "/report":
+        await _cmd_report(chat_id, state, ctx)
+        return
     if text == "/review":
         await _cmd_session_config(chat_id, state, ctx, "review")
         return
@@ -87,6 +91,12 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _handle_config_vocab_count(chat_id, state, text, ctx)
     elif s == S.SESSION_CONFIG_GRAMMAR_COUNT:
         await _handle_config_grammar_count(chat_id, state, text, ctx)
+    elif s == S.REPORT_PERIOD:
+        await _handle_report_period(chat_id, state, text, ctx)
+    elif s == S.REPORT_CUSTOM_DAYS:
+        await _handle_report_custom_days(chat_id, state, text, ctx)
+    elif s == S.REPORT_DETAIL:
+        await _handle_report_detail(chat_id, state, text, ctx)
     elif s == S.USER_ADD_VOCAB_WORD:
         await _handle_add_word_input(chat_id, state, text, ctx)
     elif s == S.USER_ADD_VOCAB_CONFIRM:
@@ -109,7 +119,7 @@ async def _cmd_start(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAUL
         return
 
     await _send(chat_id,
-        "👋 Welcome to your Mandarin tutor!\n\n"
+        f"👋 Welcome to your {LEARNING_LANGUAGE} tutor!\n\n"
         "Before we start, I need to find your current level.\n"
         "You'll get *30 multiple-choice questions* across A1–C2.\n\n"
         "Let's go! 🚀",
@@ -269,20 +279,95 @@ async def _cmd_add(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_
     else:
         state.state = S.USER_ADD_VOCAB_WORD
         session_store.save(chat_id, state)
-        await _send(chat_id, "Which Mandarin word would you like to add to your deck?", ctx)
+        await _send(chat_id, f"Which {LEARNING_LANGUAGE} word would you like to add to your deck?", ctx)
 
 
 async def _cmd_stats(chat_id: int, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     today = date.today().isoformat()
     s = queries.get_stats(chat_id, today)
+    streak = queries.get_streak(chat_id)
     await _send(chat_id,
         f"*Your stats*\n"
         f"Level: {s['cefr_level']}\n"
         f"Cards in deck: {s['total_cards']}\n"
         f"Due today: {s['due_today']}\n"
-        f"Total reviews: {s['total_reviews']}",
+        f"Total reviews: {s['total_reviews']}\n"
+        f"🔥 Streak: {streak} day{'s' if streak != 1 else ''}",
         ctx, parse_mode="Markdown"
     )
+
+
+async def _cmd_report(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    state.state = S.REPORT_PERIOD
+    session_store.save(chat_id, state)
+    await _send(chat_id,
+        "📊 *Report* — choose a period:\n\n"
+        "1) Last week (7 days)\n"
+        "2) Last month (30 days)\n"
+        "3) Last 3 months (90 days)\n"
+        "4) Custom — enter number of days",
+        ctx, parse_mode="Markdown")
+
+
+async def _handle_report_period(chat_id: int, state: SessionState, text: str,
+                                ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    mapping = {"1": 7, "2": 30, "3": 90}
+    if text in mapping:
+        state.report_period_days = mapping[text]
+        state.state = S.REPORT_DETAIL
+        session_store.save(chat_id, state)
+        await _send(chat_id, "List all vocab and grammar? (yes / no)", ctx)
+    elif text == "4":
+        state.state = S.REPORT_CUSTOM_DAYS
+        session_store.save(chat_id, state)
+        await _send(chat_id, "How many days back? Enter a number.", ctx)
+    else:
+        await _send(chat_id, "Reply 1, 2, 3, or 4.", ctx)
+
+
+async def _handle_report_custom_days(chat_id: int, state: SessionState, text: str,
+                                     ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if text.isdigit() and int(text) > 0:
+        state.report_period_days = int(text)
+        state.state = S.REPORT_DETAIL
+        session_store.save(chat_id, state)
+        await _send(chat_id, "List all vocab and grammar? (yes / no)", ctx)
+    else:
+        await _send(chat_id, "Please enter a positive number.", ctx)
+
+
+async def _handle_report_detail(chat_id: int, state: SessionState, text: str,
+                                ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if text.lower() not in ("yes", "no", "y", "n"):
+        await _send(chat_id, "Please reply yes or no.", ctx)
+        return
+    want_list = text.lower() in ("yes", "y")
+    days = state.report_period_days or 7
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+    data = queries.get_report_data(chat_id, start.isoformat(), end.isoformat())
+
+    start_str = start.strftime("%d %b").lstrip("0")
+    end_str = end.strftime("%d %b").lstrip("0")
+    lines = [
+        f"*📊 {start_str} – {end_str} ({days} day{'s' if days != 1 else ''})*\n",
+        f"📚 Learnt: {len(data['vocab_learnt'])} vocab, {len(data['grammar_learnt'])} grammar",
+        f"🔁 Reviewed: {len(data['vocab_reviewed'])} vocab, {len(data['grammar_reviewed'])} grammar",
+    ]
+    if want_list:
+        if data["vocab_learnt"]:
+            lines.append(f"\nVocab learnt: {', '.join(data['vocab_learnt'])}")
+        if data["grammar_learnt"]:
+            lines.append(f"Grammar learnt: {', '.join(data['grammar_learnt'])}")
+        if data["vocab_reviewed"]:
+            lines.append(f"\nVocab reviewed: {', '.join(data['vocab_reviewed'])}")
+        if data["grammar_reviewed"]:
+            lines.append(f"Grammar reviewed: {', '.join(data['grammar_reviewed'])}")
+
+    state.state = S.IDLE
+    state.report_period_days = None
+    session_store.save(chat_id, state)
+    await _send(chat_id, "\n".join(lines), ctx, parse_mode="Markdown")
 
 
 # ── Placement ────────────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ Tests require no real API keys — all LLM and Telegram calls are mocked.
 
 ## Architecture
 
-Multi-agent Telegram bot for Mandarin learning. Entry point: `main.py` → registers handlers → starts `APScheduler` via `post_init` hook (requires a running event loop) → `run_polling()`.
+Multi-agent Telegram bot for language learning (configurable via `LEARNING_LANGUAGE` env var, defaults to Mandarin Chinese). Entry point: `main.py` → registers handlers → starts `APScheduler` via `post_init` hook (requires a running event loop) → `run_polling()`.
 
 ### Request flow
 
@@ -48,6 +48,11 @@ Every Telegram message/callback routes through `agents/orchestrator.py::handle()
 
 /review → fetch due cards (srs_cards WHERE due_date <= today)
         → MCQ-style REVIEW_PROMPT → REVIEW_ANSWER_SHOWN (rate 1–4) → repeat → IDLE
+
+/report → REPORT_PERIOD (choose 1–4)
+        → [if 4] REPORT_CUSTOM_DAYS (enter number)
+        → REPORT_DETAIL (yes/no for word listing)
+        → summary counts (+ comma-separated word lists if yes) → IDLE
 ```
 
 **Important:** vocab/grammar IDs are stored in `daily_stories.vocab_ids` (JSON) and `daily_stories.grammar_id`. On repeat `/study` calls within the same day, the orchestrator reads these IDs and calls `queries.get_vocab_by_ids()` to load the exact same items the story was written around — preventing a mismatch between cached story and newly selected words.
@@ -74,6 +79,16 @@ Each agent in `agents/` makes LLM calls via `agents/base.py::llm_call()` (async,
 SQLite via stdlib `sqlite3`. `db/schema.py::run_migrations()` is idempotent (safe to call on every startup). `db/queries.py` is the only layer that touches SQL — no raw SQL in agents or orchestrator.
 
 Key tables: `users`, `vocab_items`, `grammar_items`, `srs_cards` (SM-2 state), `review_log` (immutable history), `sessions` (conversation state), `daily_log` (delivery deduplication), `daily_stories` (story continuity).
+
+Key query functions: `get_report_data(user_id, start_date, end_date)` — returns vocab/grammar learnt (from `daily_log`) and reviewed (from `review_log`) in a date range. `get_streak(user_id)` — counts consecutive activity days walking back from today via a UNION of `daily_log` and `review_log` dates.
+
+### Streak system
+
+`db/queries.py::get_streak(user_id)` computes consecutive active days (any `/study` or `/review` activity). Shown in `/stats`. The 10pm scheduler in `bot/notifications.py` calls `get_streak()` before sending the reminder; if the streak is ≥ 3 days, the count is passed to the LLM prompt so the reminder mentions it.
+
+### 10pm reminder
+
+`bot/notifications.py` fires daily at 22:00 Europe/London (configurable via `NOTIFICATION_HOUR` / `NOTIFICATION_TIMEZONE` env vars). Skipped entirely if the user already has any activity today (`has_activity_today()`). Otherwise an LLM-generated funny message (<7 words) is sent, optionally mentioning the streak if ≥ 3 days.
 
 ### Configuration
 

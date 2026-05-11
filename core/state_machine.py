@@ -19,6 +19,9 @@ class ConversationState(str, Enum):
     SESSION_CONFIG_TYPE = "SESSION_CONFIG_TYPE"
     SESSION_CONFIG_VOCAB_COUNT = "SESSION_CONFIG_VOCAB_COUNT"
     SESSION_CONFIG_GRAMMAR_COUNT = "SESSION_CONFIG_GRAMMAR_COUNT"
+    REPORT_PERIOD = "REPORT_PERIOD"
+    REPORT_CUSTOM_DAYS = "REPORT_CUSTOM_DAYS"
+    REPORT_DETAIL = "REPORT_DETAIL"
 
 
 @dataclass
@@ -46,6 +49,7 @@ class SessionState:
     session_config_grammar_count: int | None = None
     session_config_command: str | None = None
     session_total_vocab: int = 0
+    report_period_days: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -71,6 +75,7 @@ class SessionState:
             "session_config_grammar_count": self.session_config_grammar_count,
             "session_config_command": self.session_config_command,
             "session_total_vocab": self.session_total_vocab,
+            "report_period_days": self.report_period_days,
         }
 
     @classmethod
@@ -98,4 +103,5 @@ class SessionState:
         s.session_config_grammar_count = d.get("session_config_grammar_count")
         s.session_config_command = d.get("session_config_command")
         s.session_total_vocab = d.get("session_total_vocab", 0)
+        s.report_period_days = d.get("report_period_days")
         return s

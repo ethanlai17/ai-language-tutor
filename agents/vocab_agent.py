@@ -1,22 +1,27 @@
 import sqlite3
 from agents.base import llm_call
+from config import LEARNING_LANGUAGE
 from db import queries
 
-_SYSTEM_GENERATE = """You are a Mandarin Chinese vocabulary expert.
-Generate a batch of vocabulary items for a {level} learner.
+_SYSTEM_GENERATE = """You are a {language} vocabulary expert.
+Generate a batch of vocabulary items for a {{level}} learner.
 Return JSON: {{"items": [{{"word":"", "pinyin":"", "meaning":"", "example_sent":"", "mnemonic":""}}]}}
-Produce exactly {n} items. Use simplified characters. Meanings in English.
+Produce exactly {{n}} items. Meanings in English.
 Only include concrete content words: nouns, verbs, adjectives, and adverbs.
-Do NOT include conjunctions, particles, grammar patterns, or sentence structures (e.g. 虽然, 因为, 把, 是…的)."""
+Do NOT include conjunctions, particles, grammar patterns, or sentence structures."""
 
-_SYSTEM_ENRICH = """You are a Mandarin Chinese vocabulary expert.
-Given a Chinese word, return: pinyin, English meaning, a natural example sentence in Chinese (with English translation), and a vivid mnemonic.
+_SYSTEM_ENRICH = f"""You are a {LEARNING_LANGUAGE} vocabulary expert.
+Given a word in the target language, return: romanisation/pronunciation, English meaning, a natural example sentence (with English translation), and a vivid mnemonic.
 Return JSON: {{"word":"", "pinyin":"", "meaning":"", "example_sent":"", "mnemonic":""}}"""
 
-_SYSTEM_QUIZ = """You are a creative Mandarin Chinese vocabulary quiz writer.
+_SYSTEM_QUIZ = f"""You are a creative {LEARNING_LANGUAGE} vocabulary quiz writer.
 Generate a multiple-choice quiz question testing recall of the given word.
 Use the known_words as plausible distractors where relevant.
-Return JSON: {{"question":"", "options":{{"A":"","B":"","C":"","D":""}},"correct":"<A|B|C|D>","explanation":""}}"""
+Rules for JSON fields:
+- "question": write the instruction in the target language with its English translation in parentheses on the same line, then the target language sentence/prompt on the next line with its English translation in parentheses on the same line
+- "options": target language only, no translations
+- "explanation": write the explanation in the target language followed immediately by its English translation in parentheses
+Return JSON: {{"question":"<target language instruction> (<English>) \\n<target language sentence> (<English>)", "options":{{"A":"","B":"","C":"","D":""}},"correct":"<A|B|C|D>","explanation":"<target language> (<English>)"}}"""
 
 VOCAB_POOL_MIN = 10
 VOCAB_BATCH_SIZE = 20
@@ -26,8 +31,8 @@ async def ensure_vocab_pool(user_id: int, cefr_level: str, today: str) -> None:
     count = queries.get_vocab_pool_count(user_id, cefr_level, today)
     if count < VOCAB_POOL_MIN:
         result = await llm_call(
-            _SYSTEM_GENERATE.format(level=cefr_level, n=VOCAB_BATCH_SIZE),
-            f"Generate {VOCAB_BATCH_SIZE} {cefr_level} level Mandarin vocabulary items."
+            _SYSTEM_GENERATE.format(language=LEARNING_LANGUAGE, level=cefr_level, n=VOCAB_BATCH_SIZE),
+            f"Generate {VOCAB_BATCH_SIZE} {cefr_level} level {LEARNING_LANGUAGE} vocabulary items."
         )
         for item in result.get("items", []):
             queries.insert_vocab(

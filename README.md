@@ -1,6 +1,6 @@
 # AI Language Tutor
 
-A personal Mandarin Chinese tutor that runs as a Telegram bot. It learns your level, teaches you new words and grammar every day through a continuing serialised story, and uses spaced repetition (like Anki) to make sure you actually remember what you've learned.
+A personal language tutor that runs as a Telegram bot. It learns your level, teaches you new words and grammar every day through a continuing serialised story, and uses spaced repetition (like Anki) to make sure you actually remember what you've learned. Works with any language — set `LEARNING_LANGUAGE` in your `.env` to get started.
 
 ## What it does
 
@@ -12,6 +12,8 @@ A personal Mandarin Chinese tutor that runs as a Telegram bot. It learns your le
 - `/review` — work through any cards due today using multiple-choice questions, scheduled by the SM-2 spaced repetition algorithm. Rate each answer 1–4 to set the next review interval.
 
 **Anytime** — send `/add 某个词` to add your own word. The bot enriches it with pinyin, meaning, example sentence, and a mnemonic, then adds it to your review deck immediately.
+
+**10pm reminder** — if you haven't studied or reviewed that day, the bot sends a short funny message to nudge you. If your streak is 3+ days, the reminder mentions it. No message is sent on days you've already been active.
 
 ## Setup
 
@@ -45,7 +47,7 @@ TELEGRAM_CHAT_ID=your_chat_id_here
 DEEPSEEK_API_KEY=your_key_here
 ```
 
-The other values have sensible defaults. Change `NOTIFICATION_TIMEZONE` if you're not in Asia/Shanghai.
+The other values have sensible defaults. `NOTIFICATION_HOUR` defaults to `22` and `NOTIFICATION_TIMEZONE` defaults to `Europe/London`.
 
 ### 4. Run
 
@@ -64,8 +66,9 @@ To keep it running persistently, use a tool like `screen`, `tmux`, or deploy it 
 | `/start` | Run the placement test (first time only), or jump straight to `/study` |
 | `/study` | Today's story + quiz on each new word and grammar point |
 | `/review` | Multiple-choice review of all SRS cards due today |
-| `/add <word>` | Add a Mandarin word to your personal deck (inline: `/add 某个词`) |
-| `/stats` | See your current level, deck size, cards due today, and total reviews |
+| `/add <word>` | Add a word in your target language to your personal deck |
+| `/stats` | Your level, deck size, cards due, total reviews, and current streak |
+| `/report` | Activity report for a chosen period — counts of vocab/grammar learnt and reviewed, with optional word listing |
 
 ## Cost
 

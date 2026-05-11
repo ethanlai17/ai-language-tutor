@@ -1,17 +1,22 @@
 import sqlite3
 from agents.base import llm_call
+from config import LEARNING_LANGUAGE
 from db import queries
 
-_SYSTEM_GENERATE = """You are a Mandarin Chinese grammar expert.
-Generate grammar points for a {level} learner.
+_SYSTEM_GENERATE = """You are a {language} grammar expert.
+Generate grammar points for a {{level}} learner.
 Return JSON: {{"items": [{{"pattern":"", "explanation":"", "example_sent":""}}]}}
-Produce exactly {n} items. Each pattern should be a named construction (e.g. '把 (bǎ) disposal construction').
+Produce exactly {{n}} items. Each pattern should be a named construction.
 Explanation should be 2-3 sentences. Include a correct example and a contrast with a common learner mistake in example_sent."""
 
-_SYSTEM_QUIZ = """You are a Mandarin Chinese grammar quiz writer.
+_SYSTEM_QUIZ = f"""You are a {LEARNING_LANGUAGE} grammar quiz writer.
 Generate a quiz question testing the student's understanding of the given grammar pattern.
 Use some of the known vocabulary words in the question to reinforce vocabulary too.
-Return JSON: {{"question":"", "options":{{"A":"","B":"","C":"","D":""}},"correct":"<A|B|C|D>","explanation":""}}"""
+Rules for JSON fields:
+- "question": write the instruction in the target language with its English translation in parentheses on the same line, then the target language sentence/prompt on the next line with its English translation in parentheses on the same line
+- "options": target language only, no translations
+- "explanation": write the explanation in the target language followed immediately by its English translation in parentheses
+Return JSON: {{"question":"<target language instruction> (<English>) \\n<target language sentence> (<English>)", "options":{{"A":"","B":"","C":"","D":""}},"correct":"<A|B|C|D>","explanation":"<target language> (<English>)"}}"""
 
 GRAMMAR_POOL_MIN = 5
 GRAMMAR_BATCH_SIZE = 10
@@ -21,8 +26,8 @@ async def ensure_grammar_pool(user_id: int, cefr_level: str, today: str) -> None
     count = queries.get_grammar_pool_count(user_id, cefr_level)
     if count < GRAMMAR_POOL_MIN:
         result = await llm_call(
-            _SYSTEM_GENERATE.format(level=cefr_level, n=GRAMMAR_BATCH_SIZE),
-            f"Generate {GRAMMAR_BATCH_SIZE} {cefr_level} level Mandarin grammar points."
+            _SYSTEM_GENERATE.format(language=LEARNING_LANGUAGE, level=cefr_level, n=GRAMMAR_BATCH_SIZE),
+            f"Generate {GRAMMAR_BATCH_SIZE} {cefr_level} level {LEARNING_LANGUAGE} grammar points."
         )
         for item in result.get("items", []):
             queries.insert_grammar(

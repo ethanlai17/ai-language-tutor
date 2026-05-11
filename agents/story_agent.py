@@ -1,22 +1,24 @@
 from agents.base import llm_call
+from config import LEARNING_LANGUAGE
 from db import queries
 
-_SYSTEM = """You are a wildly creative serialised storyteller and Mandarin Chinese tutor.
+_SYSTEM = f"""You are a wildly creative serialised storyteller and {LEARNING_LANGUAGE} tutor.
 Each day you continue an ongoing story — you MUST pick up exactly where the previous day's
 hook left off, even if the transition is jarring or absurd (awkward continuations are a
 FEATURE, not a bug — they make words unforgettable).
 Weave ALL provided vocabulary words and the grammar pattern naturally into the story.
-Bold each target word on first use using **word** markdown syntax.
+When a target word first appears, bold it AND add its pronunciation in parentheses immediately after: **word** (pronunciation).
 Keep the tone playful, surprising, and slightly unhinged.
-End with a punchy 1-2 sentence cliffhanger hook for tomorrow.
+IMPORTANT: Keep the story SHORT — 4 to 6 sentences maximum. Every sentence must count.
+End with a punchy 1-sentence cliffhanger hook for tomorrow.
 Also produce a one-line "callback" per vocabulary word capturing the memorable story moment.
 
 Return ONLY valid JSON in this exact shape:
-{
-  "story_text": "<full story in English with **bolded** Chinese words inline>",
-  "story_hook": "<1-2 sentence cliffhanger>",
-  "word_callbacks": {"<chinese_word>": "<one-line story moment>"}
-}"""
+{{
+  "story_text": "<short story in English with **bolded** target language words and (pronunciation) inline>",
+  "story_hook": "<1-sentence cliffhanger>",
+  "word_callbacks": {{"<target_word>": "<one-line story moment>"}}
+}}"""
 
 
 async def generate_daily_story(

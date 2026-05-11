@@ -215,6 +215,93 @@ def log_daily_item(user_id: int, log_date: str, item_type: str, item_id: int) ->
         """, (user_id, log_date, item_type, item_id))
 
 
+def get_report_data(user_id: int, start_date: str, end_date: str) -> dict:
+    with get_conn() as conn:
+        vocab_learnt = conn.execute("""
+            SELECT vi.word FROM daily_log dl
+            JOIN vocab_items vi ON vi.item_id = dl.item_id
+            WHERE dl.user_id=? AND dl.item_type='vocab'
+            AND dl.log_date BETWEEN ? AND ?
+            GROUP BY dl.item_id
+        """, (user_id, start_date, end_date)).fetchall()
+
+        grammar_learnt = conn.execute("""
+            SELECT gi.pattern FROM daily_log dl
+            JOIN grammar_items gi ON gi.item_id = dl.item_id
+            WHERE dl.user_id=? AND dl.item_type='grammar'
+            AND dl.log_date BETWEEN ? AND ?
+            GROUP BY dl.item_id
+        """, (user_id, start_date, end_date)).fetchall()
+
+        vocab_reviewed = conn.execute("""
+            SELECT DISTINCT vi.word
+            FROM review_log rl
+            JOIN srs_cards sc ON sc.card_id = rl.card_id
+            JOIN vocab_items vi ON vi.item_id = sc.item_id
+            WHERE sc.user_id=? AND sc.item_type='vocab'
+            AND date(rl.reviewed_at) BETWEEN ? AND ?
+        """, (user_id, start_date, end_date)).fetchall()
+
+        grammar_reviewed = conn.execute("""
+            SELECT DISTINCT gi.pattern
+            FROM review_log rl
+            JOIN srs_cards sc ON sc.card_id = rl.card_id
+            JOIN grammar_items gi ON gi.item_id = sc.item_id
+            WHERE sc.user_id=? AND sc.item_type='grammar'
+            AND date(rl.reviewed_at) BETWEEN ? AND ?
+        """, (user_id, start_date, end_date)).fetchall()
+
+    return {
+        "vocab_learnt": [r[0] for r in vocab_learnt],
+        "grammar_learnt": [r[0] for r in grammar_learnt],
+        "vocab_reviewed": [r[0] for r in vocab_reviewed],
+        "grammar_reviewed": [r[0] for r in grammar_reviewed],
+    }
+
+
+def get_streak(user_id: int) -> int:
+    from datetime import date, timedelta
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT DISTINCT date_val FROM (
+                SELECT log_date AS date_val FROM daily_log WHERE user_id=?
+                UNION
+                SELECT date(reviewed_at) AS date_val
+                FROM review_log rl JOIN srs_cards sc ON sc.card_id=rl.card_id
+                WHERE sc.user_id=?
+            ) ORDER BY date_val DESC
+        """, (user_id, user_id)).fetchall()
+    if not rows:
+        return 0
+    dates = {r[0] for r in rows}
+    today = date.today()
+    check = today if today.isoformat() in dates else today - timedelta(days=1)
+    if check.isoformat() not in dates:
+        return 0
+    streak = 0
+    while check.isoformat() in dates:
+        streak += 1
+        check -= timedelta(days=1)
+    return streak
+
+
+def has_activity_today(user_id: int, today: str) -> bool:
+    with get_conn() as conn:
+        studied = conn.execute(
+            "SELECT 1 FROM daily_log WHERE user_id=? AND log_date=? LIMIT 1",
+            (user_id, today),
+        ).fetchone()
+        if studied:
+            return True
+        reviewed = conn.execute(
+            """SELECT 1 FROM review_log rl
+               JOIN srs_cards sc ON sc.card_id = rl.card_id
+               WHERE sc.user_id=? AND date(rl.reviewed_at)=? LIMIT 1""",
+            (user_id, today),
+        ).fetchone()
+        return reviewed is not None
+
+
 # ── Sessions ────────────────────────────────────────────────────────────────
 
 def save_session(user_id: int, state: str, context: dict) -> None:
