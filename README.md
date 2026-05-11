@@ -11,9 +11,13 @@ A personal language tutor that runs as a Telegram bot. It learns your level, tea
 - `/study` — a continuing story that weaves together 5 new vocabulary words and 1 new grammar point, picking up exactly where yesterday's cliffhanger left off (awkward transitions are intentional — they make words stick). Followed by a quiz on each new word and grammar point.
 - `/review` — work through any cards due today using multiple-choice questions, scheduled by the SM-2 spaced repetition algorithm. Rate each answer 1–4 to set the next review interval.
 
-**Anytime** — send `/add 某个词` to add your own word. The bot enriches it with pinyin, meaning, example sentence, and a mnemonic, then adds it to your review deck immediately.
+**Anytime** — send `/add <word>` to add your own word. The bot enriches it with pronunciation, meaning, example sentence, and a mnemonic, then adds it to your review deck immediately.
 
-**10pm reminder** — if you haven't studied or reviewed that day, the bot sends a short funny message to nudge you. If your streak is 3+ days, the reminder mentions it. No message is sent on days you've already been active.
+**Streak tracking** — any day you complete a `/study` or `/review` session counts toward your streak. The current streak is shown in `/stats`. Miss a day and it resets to zero — just like Duolingo.
+
+**Reports** — `/report` walks you through choosing a time period (last week, month, 3 months, or a custom number of days) and shows a breakdown of how many words and grammar points you studied and reviewed. Optionally lists every item by name.
+
+**Daily reminder** — at 10pm (configurable) the bot sends a short, LLM-generated funny nudge if you haven't been active that day. Once your streak reaches 3+ days the reminder mentions it to raise the stakes. No message is sent on days you've already studied or reviewed.
 
 ## Setup
 
