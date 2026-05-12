@@ -12,7 +12,7 @@ Generate exactly ONE reminder. Rules:
 - Wildly funny — rotate freely between: absurd threats, existential dread, fake urgency, cursed wisdom, dramatic flattery, nonsense prophecy
 - One emoji allowed, optional
 - Never generic ("study now", "don't forget")
-Return JSON: {"reminder": "<text>"}"""
+Return JSON: {{"reminder": "<text>"}}"""
 
 
 def setup(app: Application) -> AsyncIOScheduler:
