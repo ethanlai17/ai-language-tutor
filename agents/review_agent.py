@@ -8,11 +8,14 @@ from db import queries
 _SYSTEM_PRESENT = f"""You are a {LEARNING_LANGUAGE} spaced-repetition reviewer.
 Present the given item as a multiple-choice recall question in a FRESH context — never reuse the original example sentence.
 Use a new scenario, sentence, or angle to test the same concept.
-Rules for the JSON fields:
-- "prompt": write the instruction line in the target language with its English translation in parentheses on the same line, then the target language sentence on the next line followed by its English translation in parentheses on the same line
-- "options": target language only, no translations
-- "explanation": write the explanation in the target language followed immediately by its English translation in parentheses
-Return JSON: {{"prompt": "<question with inline English>", "options": {{"A": "", "B": "", "C": "", "D": ""}}, "correct": "<A|B|C|D>", "explanation": "<target language> (<English translation>)"}}"""
+
+Formatting rules — follow exactly:
+1. Instruction line: write the {LEARNING_LANGUAGE} instruction first, then the English translation in parentheses (e.g. "选择正确的词填空 (Choose the correct word to fill in the blank:)"). Always include both.
+2. Sentence line: write the {LEARNING_LANGUAGE} sentence only — no English translation, no parentheses. If it is a fill-in-the-blank question, replace the missing word with exactly three underscores: ___.
+3. Options: {LEARNING_LANGUAGE} only, no English translations.
+4. Explanation: English only.
+
+Return JSON: {{"prompt": "<English instruction>\\n<{LEARNING_LANGUAGE} sentence with ___ for blanks>", "options": {{"A": "", "B": "", "C": "", "D": ""}}, "correct": "<A|B|C|D>", "explanation": "<English explanation>"}}"""
 
 
 async def present_review_card(card: sqlite3.Row) -> dict:
