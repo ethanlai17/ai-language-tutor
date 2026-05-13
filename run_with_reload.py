@@ -2,56 +2,50 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 
 PROJECT = Path(__file__).parent
 PYTHON = sys.executable
 
 
-class RestartHandler(FileSystemEventHandler):
-    def __init__(self):
-        self.should_restart = False
+def latest_mtime() -> float:
+    return max(
+        (p.stat().st_mtime for p in PROJECT.rglob("*.py") if "__pycache__" not in str(p)),
+        default=0.0,
+    )
 
-    def on_modified(self, event):
-        if event.src_path.endswith(".py"):
-            self.should_restart = True
 
-    def on_created(self, event):
-        if event.src_path.endswith(".py"):
-            self.should_restart = True
+def start_bot() -> subprocess.Popen:
+    return subprocess.Popen([PYTHON, str(PROJECT / "main.py")], cwd=str(PROJECT))
 
 
 def run():
-    handler = RestartHandler()
-    observer = Observer()
-    observer.schedule(handler, str(PROJECT), recursive=True)
-    observer.start()
+    proc = start_bot()
+    last_mtime = latest_mtime()
 
-    proc = None
     try:
         while True:
-            if proc is None or proc.poll() is not None:
-                if proc is not None:
-                    print("Bot exited, restarting...", flush=True)
-                proc = subprocess.Popen([PYTHON, str(PROJECT / "main.py")], cwd=str(PROJECT))
+            time.sleep(2)
 
-            if handler.should_restart:
-                handler.should_restart = False
+            if proc.poll() is not None:
+                print("Bot exited, restarting...", flush=True)
+                proc = start_bot()
+                last_mtime = latest_mtime()
+                continue
+
+            current_mtime = latest_mtime()
+            if current_mtime > last_mtime:
                 print(".py file changed, restarting bot...", flush=True)
+                last_mtime = current_mtime
                 proc.terminate()
                 proc.wait()
                 time.sleep(1)
-                proc = subprocess.Popen([PYTHON, str(PROJECT / "main.py")], cwd=str(PROJECT))
+                proc = start_bot()
 
-            time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
-        if proc and proc.poll() is None:
+        if proc.poll() is None:
             proc.terminate()
-        observer.stop()
-        observer.join()
 
 
 if __name__ == "__main__":

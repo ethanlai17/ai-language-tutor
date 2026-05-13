@@ -136,9 +136,9 @@ async def _cmd_start(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAUL
     await _send(chat_id,
         f"👋 Welcome to your {LEARNING_LANGUAGE} tutor!\n\n"
         "Before we start, I need to find your current level.\n"
-        "You'll get *30 multiple-choice questions* across A1–C2.\n\n"
+        "You'll get <b>30 multiple-choice questions</b> across A1–C2.\n\n"
         "Let's go! 🚀",
-        ctx, parse_mode="Markdown"
+        ctx, parse_mode="HTML"
     )
     state.state = S.PLACEMENT_QUESTION
     state.placement_index = 0
@@ -160,8 +160,8 @@ async def _cmd_session_config(chat_id: int, state: SessionState, ctx: ContextTyp
     state.state = S.SESSION_CONFIG_TYPE
     session_store.save(chat_id, state)
     await _send(chat_id,
-        "Vocabulary or grammar or both?\nType `v` for vocabulary, `g` for grammar, or `b` for both.",
-        ctx, parse_mode="Markdown"
+        "Vocabulary or grammar or both?\nType <code>v</code> for vocabulary, <code>g</code> for grammar, or <code>b</code> for both.",
+        ctx, parse_mode="HTML"
     )
 
 
@@ -169,32 +169,32 @@ async def _handle_config_type(chat_id: int, state: SessionState, text: str,
                                ctx: ContextTypes.DEFAULT_TYPE) -> None:
     t = text.strip().lower()
     if t not in ("v", "g", "b"):
-        await _send(chat_id, "Please type `v`, `g`, or `b`.", ctx, parse_mode="Markdown")
+        await _send(chat_id, "Please type <code>v</code>, <code>g</code>, or <code>b</code>.", ctx, parse_mode="HTML")
         return
     state.session_config_type = t
     verb = "review" if state.session_config_command == "review" else "learn"
     if t in ("v", "b"):
         state.state = S.SESSION_CONFIG_VOCAB_COUNT
         session_store.save(chat_id, state)
-        await _send(chat_id, f"How many words do you want to {verb} now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+        await _send(chat_id, f"How many words do you want to {verb} now? (or type <code>w</code> to let the bot decide)", ctx, parse_mode="HTML")
     else:
         state.state = S.SESSION_CONFIG_GRAMMAR_COUNT
         session_store.save(chat_id, state)
-        await _send(chat_id, f"How many grammar points do you want to {verb} now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+        await _send(chat_id, f"How many grammar points do you want to {verb} now? (or type <code>w</code> to let the bot decide)", ctx, parse_mode="HTML")
 
 
 async def _handle_config_vocab_count(chat_id: int, state: SessionState, text: str,
                                       ctx: ContextTypes.DEFAULT_TYPE) -> None:
     n = _parse_count(text, default=3)
     if n is None:
-        await _send(chat_id, "Please enter a number (e.g. 3) or `w` to let the bot decide.", ctx, parse_mode="Markdown")
+        await _send(chat_id, "Please enter a number (e.g. 3) or <code>w</code> to let the bot decide.", ctx, parse_mode="HTML")
         return
     state.session_config_vocab_count = n
     if state.session_config_type == "b":
         verb = "review" if state.session_config_command == "review" else "learn"
         state.state = S.SESSION_CONFIG_GRAMMAR_COUNT
         session_store.save(chat_id, state)
-        await _send(chat_id, f"How many grammar points do you want to {verb} now? (or type `w` to let the bot decide)", ctx, parse_mode="Markdown")
+        await _send(chat_id, f"How many grammar points do you want to {verb} now? (or type <code>w</code> to let the bot decide)", ctx, parse_mode="HTML")
     else:
         session_store.save(chat_id, state)
         await _execute_session_config(chat_id, state, ctx)
@@ -204,7 +204,7 @@ async def _handle_config_grammar_count(chat_id: int, state: SessionState, text: 
                                         ctx: ContextTypes.DEFAULT_TYPE) -> None:
     n = _parse_count(text, default=1)
     if n is None:
-        await _send(chat_id, "Please enter a number (e.g. 1) or `w` to let the bot decide.", ctx, parse_mode="Markdown")
+        await _send(chat_id, "Please enter a number (e.g. 1) or <code>w</code> to let the bot decide.", ctx, parse_mode="HTML")
         return
     state.session_config_grammar_count = n
     session_store.save(chat_id, state)
@@ -279,8 +279,8 @@ async def _run_study(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAUL
     session_store.save(chat_id, state)
 
     await _send(chat_id,
-        f"📖 *Today's Story*\n\n{story.get('story_text', '')}\n\n_{story.get('story_hook', '')}_",
-        ctx, parse_mode="Markdown",
+        f"📖 <b>Today's Story</b>\n\n{_esc(story.get('story_text', ''))}\n\n<i>{_esc(story.get('story_hook', ''))}</i>",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.continue_keyboard()
     )
 
@@ -302,13 +302,13 @@ async def _cmd_stats(chat_id: int, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     s = queries.get_stats(chat_id, today)
     streak = queries.get_streak(chat_id)
     await _send(chat_id,
-        f"*Your stats*\n"
+        f"<b>Your stats</b>\n"
         f"Level: {s['cefr_level']}\n"
         f"Cards in deck: {s['total_cards']}\n"
         f"Due today: {s['due_today']}\n"
         f"Total reviews: {s['total_reviews']}\n"
         f"🔥 Streak: {streak} day{'s' if streak != 1 else ''}",
-        ctx, parse_mode="Markdown"
+        ctx, parse_mode="HTML"
     )
 
 
@@ -316,12 +316,12 @@ async def _cmd_report(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAU
     state.state = S.REPORT_PERIOD
     session_store.save(chat_id, state)
     await _send(chat_id,
-        "📊 *Report* — choose a period:\n\n"
+        "📊 <b>Report</b> — choose a period:\n\n"
         "1) Last week (7 days)\n"
         "2) Last month (30 days)\n"
         "3) Last 3 months (90 days)\n"
         "4) Custom — enter number of days",
-        ctx, parse_mode="Markdown")
+        ctx, parse_mode="HTML")
 
 
 async def _handle_report_period(chat_id: int, state: SessionState, text: str,
@@ -365,7 +365,7 @@ async def _handle_report_detail(chat_id: int, state: SessionState, text: str,
     start_str = start.strftime("%d %b").lstrip("0")
     end_str = end.strftime("%d %b").lstrip("0")
     lines = [
-        f"*📊 {start_str} – {end_str} ({days} day{'s' if days != 1 else ''})*\n",
+        f"<b>📊 {start_str} – {end_str} ({days} day{'s' if days != 1 else ''})</b>\n",
         f"📚 Learnt: {len(data['vocab_learnt'])} vocab, {len(data['grammar_learnt'])} grammar",
         f"🔁 Reviewed: {len(data['vocab_reviewed'])} vocab, {len(data['grammar_reviewed'])} grammar",
     ]
@@ -382,7 +382,7 @@ async def _handle_report_detail(chat_id: int, state: SessionState, text: str,
     state.state = S.IDLE
     state.report_period_days = None
     session_store.save(chat_id, state)
-    await _send(chat_id, "\n".join(lines), ctx, parse_mode="Markdown")
+    await _send(chat_id, "\n".join(lines), ctx, parse_mode="HTML")
 
 
 # ── Placement ────────────────────────────────────────────────────────────────
@@ -391,14 +391,14 @@ async def _send_placement_question(chat_id: int, state: SessionState, ctx: Conte
     q = assessor.get_question(state.placement_index)
     total = assessor.total_questions()
     text = (
-        f"*Question {state.placement_index + 1}/{total}*\n\n"
-        f"{q['question']}\n\n"
-        f"A) {q['options']['A']}\n"
-        f"B) {q['options']['B']}\n"
-        f"C) {q['options']['C']}\n"
-        f"D) {q['options']['D']}"
+        f"<b>Question {state.placement_index + 1}/{total}</b>\n\n"
+        f"{_esc(q['question'])}\n\n"
+        f"A) {_esc(q['options']['A'])}\n"
+        f"B) {_esc(q['options']['B'])}\n"
+        f"C) {_esc(q['options']['C'])}\n"
+        f"D) {_esc(q['options']['D'])}"
     )
-    await _send(chat_id, text, ctx, parse_mode="Markdown", reply_markup=keyboards.mcq_keyboard())
+    await _send(chat_id, text, ctx, parse_mode="HTML", reply_markup=keyboards.mcq_keyboard())
 
 
 async def _handle_placement_answer(chat_id: int, state: SessionState, answer: str,
@@ -420,8 +420,8 @@ async def _handle_placement_answer(chat_id: int, state: SessionState, answer: st
         state.state = S.PLACEMENT_COMPLETE
         session_store.save(chat_id, state)
         await _send(chat_id,
-            f"*Your level: {level}*\n\n{justification}\n\nSend /study to start your first lesson!",
-            ctx, parse_mode="Markdown"
+            f"<b>Your level: {_esc(level)}</b>\n\n{_esc(justification)}\n\nSend /study to start your first lesson!",
+            ctx, parse_mode="HTML"
         )
     else:
         session_store.save(chat_id, state)
@@ -445,7 +445,7 @@ async def _run_review(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAU
         await _send(chat_id, "No cards due for review today. Come back tomorrow!", ctx)
         return
 
-    await _send(chat_id, f"*{len(state.pending_review_cards)} card(s)* due for review. Let's go!", ctx, parse_mode="Markdown")
+    await _send(chat_id, f"<b>{len(state.pending_review_cards)} card(s)</b> due for review. Let's go!", ctx, parse_mode="HTML")
     await _send_next_review(chat_id, state, ctx)
 
 
@@ -461,11 +461,11 @@ async def _send_next_review(chat_id: int, state: SessionState, ctx: ContextTypes
     session_store.save(chat_id, state)
 
     options = card_data.get("options", {})
-    options_text = "\n".join(f"{k}) {v}" for k, v in options.items())
+    options_text = "\n".join(f"{k}) {_esc(v)}" for k, v in options.items())
     remaining = len(state.pending_review_cards)
     await _send(chat_id,
-        f"🔁 *Review* ({remaining} left)\n\n{card_data['prompt']}\n\n{options_text}",
-        ctx, parse_mode="Markdown",
+        f"🔁 <b>Review</b> ({remaining} left)\n\n{_esc(card_data['prompt'])}\n\n{options_text}",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.mcq_keyboard()
     )
 
@@ -475,10 +475,10 @@ async def _handle_review_answer(chat_id: int, state: SessionState, answer: str,
     correct = answer == state.quiz_correct
     icon = "✅" if correct else "❌"
     await _send(chat_id,
-        f"{icon} {'Correct!' if correct else f'The answer was {state.quiz_correct}.'}\n\n"
-        f"{state.quiz_explanation or ''}\n\n"
+        f"{icon} {'Correct!' if correct else f'The answer was {_esc(state.quiz_correct)}.'}\n\n"
+        f"{_esc(state.quiz_explanation or '')}\n\n"
         "How well did you remember? Rate 1–4:",
-        ctx, parse_mode="Markdown",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.rating_keyboard()
     )
     state.state = S.REVIEW_ANSWER_SHOWN
@@ -512,17 +512,17 @@ async def _send_next_vocab_lesson(chat_id: int, state: SessionState, ctx: Contex
     session_store.save(chat_id, state)
 
     callback = state.word_callbacks.get(item["word"], "")
-    callback_line = f"\n\n_💡 Story moment: {callback}_" if callback else ""
+    callback_line = f"\n\n<i>💡 Story moment: {_esc(callback)}</i>" if callback else ""
 
     text = (
-        f"📚 *New word {state.session_total_vocab - len(state.pending_vocab_ids) + 1}/{state.session_total_vocab}*\n\n"
-        f"*{item['word']}* ({item['pinyin']})\n"
-        f"➜ {item['meaning']}\n\n"
-        f"📝 {item['example_sent']}\n\n"
-        f"🧠 Mnemonic: _{item['mnemonic']}_"
+        f"📚 <b>New word {state.session_total_vocab - len(state.pending_vocab_ids) + 1}/{state.session_total_vocab}</b>\n\n"
+        f"<b>{_esc(item['word'])}</b> ({_esc(item['pinyin'])})\n"
+        f"➜ {_esc(item['meaning'])}\n\n"
+        f"📝 {_esc(item['example_sent'])}\n\n"
+        f"🧠 Mnemonic: <i>{_esc(item['mnemonic'])}</i>"
         f"{callback_line}"
     )
-    await _send(chat_id, text, ctx, parse_mode="Markdown", reply_markup=keyboards.got_it_keyboard())
+    await _send(chat_id, text, ctx, parse_mode="HTML", reply_markup=keyboards.got_it_keyboard())
 
 
 async def _send_vocab_quiz(chat_id: int, state: SessionState, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -537,9 +537,9 @@ async def _send_vocab_quiz(chat_id: int, state: SessionState, ctx: ContextTypes.
 
     opts = quiz.get("options", {})
     await _send(chat_id,
-        f"🎯 *Quick quiz!*\n\n{quiz.get('question', '')}\n\n"
-        f"A) {opts.get('A','')}\nB) {opts.get('B','')}\nC) {opts.get('C','')}\nD) {opts.get('D','')}",
-        ctx, parse_mode="Markdown",
+        f"🎯 <b>Quick quiz!</b>\n\n{_esc(quiz.get('question', ''))}\n\n"
+        f"A) {_esc(opts.get('A',''))}\nB) {_esc(opts.get('B',''))}\nC) {_esc(opts.get('C',''))}\nD) {_esc(opts.get('D',''))}",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.mcq_keyboard()
     )
 
@@ -549,8 +549,8 @@ async def _handle_vocab_quiz_answer(chat_id: int, state: SessionState, answer: s
     correct = state.quiz_correct or "A"
     explanation = state.quiz_explanation or ""
     icon = "✅" if answer == correct else "❌"
-    await _send(chat_id, f"{icon} Correct answer: *{correct}*\n_{explanation}_",
-                ctx, parse_mode="Markdown")
+    await _send(chat_id, f"{icon} Correct answer: <b>{_esc(correct)}</b>\n<i>{_esc(explanation)}</i>",
+                ctx, parse_mode="HTML")
 
     today = date.today().isoformat()
     queries.log_daily_item(chat_id, today, "vocab", state.current_item_id)
@@ -575,11 +575,11 @@ async def _send_grammar_lesson(chat_id: int, state: SessionState, ctx: ContextTy
     session_store.save(chat_id, state)
 
     await _send(chat_id,
-        f"📖 *Today's Grammar*\n\n"
-        f"*{item['pattern']}*\n\n"
-        f"{item['explanation']}\n\n"
-        f"📝 {item['example_sent']}",
-        ctx, parse_mode="Markdown",
+        f"📖 <b>Today's Grammar</b>\n\n"
+        f"<b>{_esc(item['pattern'])}</b>\n\n"
+        f"{_esc(item['explanation'])}\n\n"
+        f"📝 {_esc(item['example_sent'])}",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.got_it_keyboard()
     )
 
@@ -596,9 +596,9 @@ async def _send_grammar_quiz(chat_id: int, state: SessionState, ctx: ContextType
 
     opts = quiz.get("options", {})
     await _send(chat_id,
-        f"🎯 *Grammar quiz!*\n\n{quiz.get('question', '')}\n\n"
-        f"A) {opts.get('A','')}\nB) {opts.get('B','')}\nC) {opts.get('C','')}\nD) {opts.get('D','')}",
-        ctx, parse_mode="Markdown",
+        f"🎯 <b>Grammar quiz!</b>\n\n{_esc(quiz.get('question', ''))}\n\n"
+        f"A) {_esc(opts.get('A',''))}\nB) {_esc(opts.get('B',''))}\nC) {_esc(opts.get('C',''))}\nD) {_esc(opts.get('D',''))}",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.mcq_keyboard()
     )
 
@@ -608,8 +608,8 @@ async def _handle_grammar_quiz_answer(chat_id: int, state: SessionState, answer:
     correct = state.quiz_correct or "A"
     explanation = state.quiz_explanation or ""
     icon = "✅" if answer == correct else "❌"
-    await _send(chat_id, f"{icon} Correct answer: *{correct}*\n_{explanation}_",
-                ctx, parse_mode="Markdown")
+    await _send(chat_id, f"{icon} Correct answer: <b>{_esc(correct)}</b>\n<i>{_esc(explanation)}</i>",
+                ctx, parse_mode="HTML")
 
     today = date.today().isoformat()
     queries.log_daily_item(chat_id, today, "grammar", state.current_item_id)
@@ -623,7 +623,7 @@ async def _handle_grammar_quiz_answer(chat_id: int, state: SessionState, answer:
 
 async def _handle_add_word_input(chat_id: int, state: SessionState, word: str,
                                  ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    await _send(chat_id, f"Looking up *{word}*...", ctx, parse_mode="Markdown")
+    await _send(chat_id, f"Looking up <b>{_esc(word)}</b>...", ctx, parse_mode="HTML")
     try:
         enriched = await vocab_agent.enrich_user_word(word)
     except Exception:
@@ -637,12 +637,12 @@ async def _handle_add_word_input(chat_id: int, state: SessionState, word: str,
     session_store.save(chat_id, state)
 
     await _send(chat_id,
-        f"*{enriched.get('word', word)}* ({enriched.get('pinyin', '')})\n"
-        f"➜ {enriched.get('meaning', '')}\n\n"
-        f"📝 {enriched.get('example_sent', '')}\n\n"
-        f"🧠 _{enriched.get('mnemonic', '')}_\n\n"
+        f"<b>{_esc(enriched.get('word', word))}</b> ({_esc(enriched.get('pinyin', ''))})\n"
+        f"➜ {_esc(enriched.get('meaning', ''))}\n\n"
+        f"📝 {_esc(enriched.get('example_sent', ''))}\n\n"
+        f"🧠 <i>{_esc(enriched.get('mnemonic', ''))}</i>\n\n"
         "Save this card?",
-        ctx, parse_mode="Markdown",
+        ctx, parse_mode="HTML",
         reply_markup=keyboards.confirm_keyboard()
     )
 
@@ -669,8 +669,8 @@ async def _handle_add_confirm(chat_id: int, state: SessionState, ctx: ContextTyp
     state.pending_add_enriched = None
     session_store.save(chat_id, state)
 
-    await _send(chat_id, f"Added *{e.get('word', '')}* to your deck. It's due for review today!",
-                ctx, parse_mode="Markdown")
+    await _send(chat_id, f"Added <b>{_esc(e.get('word', ''))}</b> to your deck. It's due for review today!",
+                ctx, parse_mode="HTML")
 
 
 # ── Session end ───────────────────────────────────────────────────────────────
@@ -682,6 +682,10 @@ async def _finish_session(chat_id: int, state: SessionState, ctx: ContextTypes.D
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _esc(text: str) -> str:
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 
 async def _send(chat_id: int, text: str, ctx: ContextTypes.DEFAULT_TYPE,
                 parse_mode: str = None, reply_markup=None) -> None:
