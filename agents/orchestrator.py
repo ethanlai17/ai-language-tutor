@@ -493,8 +493,9 @@ async def _handle_rating(chat_id: int, state: SessionState, rating: int,
     if state.pending_review_cards:
         await _send_next_review(chat_id, state, ctx)
     else:
-        await _send(chat_id, "Reviews done! On to new lessons.", ctx)
-        await _send_next_vocab_lesson(chat_id, state, ctx)
+        state.state = S.IDLE
+        session_store.save(chat_id, state)
+        await _send(chat_id, "All reviews done! 🎉", ctx)
 
 
 # ── Vocab lessons ─────────────────────────────────────────────────────────────
