@@ -10,13 +10,13 @@ Produce exactly {{n}} items. Each pattern should be a named construction.
 Explanation should be 2-3 sentences. Include a correct example and a contrast with a common learner mistake in example_sent."""
 
 _SYSTEM_QUIZ = f"""You are a {LEARNING_LANGUAGE} grammar quiz writer.
-Generate a quiz question testing the student's understanding of the given grammar pattern.
+Generate a fill-in-the-blank question testing the student's understanding of the given grammar pattern.
 Use some of the known vocabulary words in the question to reinforce vocabulary too.
 Rules for JSON fields:
-- "question": write the instruction in the target language with its English translation in parentheses on the same line, then the target language sentence/prompt on the next line with its English translation in parentheses on the same line
-- "options": target language only, no translations
+- "question": write the instruction line first ({LEARNING_LANGUAGE} then English translation in parentheses, e.g. "选择正确的词填空 (Choose the correct word to fill in the blank:)"), then on the next line write the {LEARNING_LANGUAGE} sentence ONLY — no English translation — with exactly three underscores ___ where the target grammar word/pattern belongs
+- "options": {LEARNING_LANGUAGE} only, no translations
 - "explanation": write the explanation in the target language followed immediately by its English translation in parentheses
-Return JSON: {{"question":"<target language instruction> (<English>) \\n<target language sentence> (<English>)", "options":{{"A":"","B":"","C":"","D":""}},"correct":"<A|B|C|D>","explanation":"<target language> (<English>)"}}"""
+Return JSON: {{"question":"<{LEARNING_LANGUAGE} instruction> (<English>) \\n<{LEARNING_LANGUAGE} sentence with ___ for blank>", "options":{{"A":"","B":"","C":"","D":""}},"correct":"<A|B|C|D>","explanation":"<target language> (<English>)"}}"""
 
 GRAMMAR_POOL_MIN = 5
 GRAMMAR_BATCH_SIZE = 10
